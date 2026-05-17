@@ -57,6 +57,7 @@ def analyze_topology(
             all_ok = False
             plc_entries.append({
                 "name": name, "st_file": plc["file"], "status": "missing",
+                "errors": [f"st file not found: {plc['file']}"],
                 "artifacts": {}, "counts": {}, "st_gen_fsms": fsms,
             })
             if not keep_going:
@@ -84,7 +85,7 @@ def analyze_topology(
         )
         status = "ok"
         errors = list(result.errors)
-        if fsms and pdg_nodes == 0:
+        if fsms and pdg_nodes == 0 and result.ok:
             status = "error"
             errors.append("st_gen manifest lists FSMs but PDG is empty")
         elif not result.ok:
@@ -99,8 +100,7 @@ def analyze_topology(
             "status": status,
             "errors": errors,
             "artifacts": {
-                "ast_xml": f"{out.name}/{ast_xml_f}" if out_dir is None
-                else ast_xml_f,
+                "ast_xml": ast_xml_f,
                 "invariants_json": inv_f,
                 "pdg_dot": dot_f,
                 "pdg_json": pdgj_f,

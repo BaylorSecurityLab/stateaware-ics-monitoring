@@ -35,11 +35,66 @@ def test_analyze_topology_writes_artifacts(repo_data, tmp_path: Path):
     assert plc1["counts"]["pdg_nodes"] >= 1
 
 
-def test_keep_going_controls_exit_contract(repo_data, tmp_path: Path):
-    gen = repo_data / "generated"
-    if not (gen / "anytown" / "anytown_manifest.json").exists():
-        pytest.skip("generated anytown data missing")
+def test_missing_st_file_entry_has_errors_key_and_stops(tmp_path: Path):
+    topo = tmp_path / "synth"
+    topo.mkdir()
+    (topo / "synth_manifest.json").write_text(json.dumps({
+        "topology": "synth",
+        "plcs": [
+            {"name": "PLC1", "file": "synth_plc1.st",
+             "fsms": [{"actuator": "P1", "states": 2, "transitions": 2}]},
+            {"name": "PLC2", "file": "synth_plc2.st", "fsms": []},
+        ],
+    }))
+    # PLC1's .st intentionally absent → "missing"; PLC2 never reached
     m = analyze_topology(
-        generated_dir=gen, topology="anytown", out_dir=tmp_path / "a"
+        generated_dir=tmp_path, topology="synth", out_dir=tmp_path / "out"
     )
-    assert m["all_ok"] in (True, False)
+    assert m["all_ok"] is False
+    assert len(m["plcs"]) == 1  # keep_going=False stops after PLC1
+    miss = m["plcs"][0]
+    assert miss["status"] == "missing"
+    assert miss["errors"] == ["st file not found: synth_plc1.st"]
+
+
+def test_keep_going_processes_all_plcs(tmp_path: Path):
+    topo = tmp_path / "synth"
+    topo.mkdir()
+    (topo / "synth_manifest.json").write_text(json.dumps({
+        "topology": "synth",
+        "plcs": [
+            {"name": "PLC1", "file": "synth_plc1.st", "fsms": []},
+            {"name": "PLC2", "file": "synth_plc2.st", "fsms": []},
+        ],
+    }))
+    m = analyze_topology(
+        generated_dir=tmp_path, topology="synth",
+        out_dir=tmp_path / "out", keep_going=True,
+    )
+    assert len(m["plcs"]) == 2  # both processed despite both missing
+    assert all(p["status"] == "missing" for p in m["plcs"])
+    assert m["all_ok"] is False
+
+
+def test_fsm_listed_but_empty_pdg_is_error(tmp_path: Path):
+    topo = tmp_path / "synth"
+    topo.mkdir()
+    # Empty PROGRAM → analyzer parses OK but produces no PDG nodes,
+    # while the manifest claims this PLC has an FSM.
+    (topo / "synth_plc1.st").write_text(
+        "PROGRAM PLC1\n(* no actuators *)\nEND_PROGRAM\n"
+    )
+    (topo / "synth_manifest.json").write_text(json.dumps({
+        "topology": "synth",
+        "plcs": [
+            {"name": "PLC1", "file": "synth_plc1.st",
+             "fsms": [{"actuator": "P1", "states": 2, "transitions": 2}]},
+        ],
+    }))
+    m = analyze_topology(
+        generated_dir=tmp_path, topology="synth", out_dir=tmp_path / "out"
+    )
+    plc1 = m["plcs"][0]
+    assert plc1["status"] == "error"
+    assert "st_gen manifest lists FSMs but PDG is empty" in plc1["errors"]
+    assert m["all_ok"] is False
