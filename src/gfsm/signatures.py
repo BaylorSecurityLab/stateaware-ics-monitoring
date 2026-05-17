@@ -397,3 +397,73 @@ def generate_signatures(fb: FunctionBlock) -> StateSignatureTable:
             fb, state_id, paths
         )
     return table
+
+
+def _as_float(v: str) -> float | None:
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return None
+
+
+def conjunction_is_unsat(conj: list[Condition]) -> bool:
+    by_var: dict[str, list[Condition]] = {}
+    for c in conj:
+        by_var.setdefault(c.variable, []).append(c)
+
+    for _var, conds in by_var.items():
+        eq_values: set[str] = set()
+        neq_values: set[str] = set()
+        lo = float("-inf")
+        lo_closed = True
+        hi = float("inf")
+        hi_closed = True
+        eq_pin: float | None = None
+
+        for c in conds:
+            op, val = c.operator, c.value
+            fv = _as_float(val)
+            if op == "=":
+                eq_values.add(val)
+                if len(eq_values) > 1:
+                    return True
+                if val in neq_values:
+                    return True
+                if fv is not None:
+                    if eq_pin is not None and eq_pin != fv:
+                        return True
+                    eq_pin = fv
+            elif op == "<>":
+                neq_values.add(val)
+                if val in eq_values:
+                    return True
+            elif fv is not None:
+                if op == ">":
+                    if fv > lo or (fv == lo and lo_closed):
+                        lo, lo_closed = fv, False
+                elif op == ">=":
+                    if fv > lo:
+                        lo, lo_closed = fv, True
+                elif op == "<":
+                    if fv < hi or (fv == hi and hi_closed):
+                        hi, hi_closed = fv, False
+                elif op == "<=":
+                    if fv < hi:
+                        hi, hi_closed = fv, True
+
+        if lo > hi:
+            return True
+        if lo == hi and not (lo_closed and hi_closed):
+            return True
+        if eq_pin is not None:
+            if eq_pin < lo or (eq_pin == lo and not lo_closed):
+                return True
+            if eq_pin > hi or (eq_pin == hi and not hi_closed):
+                return True
+    return False
+
+
+def is_syntactically_unsat(dnf: list[list[Condition]]) -> bool:
+    if not dnf:
+        return True
+    return all(conjunction_is_unsat(term) for term in dnf)

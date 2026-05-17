@@ -201,3 +201,53 @@ def test_or_condition_two_signatures():
     )
     table = generate_signatures(fb)
     assert len(table.signatures["20"].path_signatures) == 2
+
+
+from gfsm.signatures import conjunction_is_unsat, is_syntactically_unsat
+
+
+def test_equal_different_values_unsat():
+    assert conjunction_is_unsat(
+        [Condition("T1", "=", "high"), Condition("T1", "=", "low")]
+    )
+
+
+def test_equal_same_value_sat():
+    assert not conjunction_is_unsat(
+        [Condition("T1", "=", "high"), Condition("T1", "=", "high")]
+    )
+
+
+def test_equal_and_neq_same_value_unsat():
+    assert conjunction_is_unsat(
+        [Condition("T1", "=", "high"), Condition("T1", "<>", "high")]
+    )
+
+
+def test_numeric_range_contradiction_unsat():
+    assert conjunction_is_unsat(
+        [Condition("x", ">", "5"), Condition("x", "<", "3")]
+    )
+    assert conjunction_is_unsat(
+        [Condition("x", ">", "5"), Condition("x", "=", "1")]
+    )
+
+
+def test_numeric_range_satisfiable():
+    assert not conjunction_is_unsat(
+        [Condition("x", ">", "1"), Condition("x", "<", "10")]
+    )
+
+
+def test_different_variables_independent_sat():
+    assert not conjunction_is_unsat(
+        [Condition("A", "=", "1"), Condition("B", "=", "2")]
+    )
+
+
+def test_dnf_unsat_only_if_all_terms_unsat():
+    sat_term = [Condition("A", "=", "1")]
+    unsat_term = [Condition("A", "=", "1"), Condition("A", "=", "2")]
+    assert is_syntactically_unsat([unsat_term, unsat_term])
+    assert not is_syntactically_unsat([unsat_term, sat_term])
+    assert not is_syntactically_unsat([[]])  # empty conj = TRUE
