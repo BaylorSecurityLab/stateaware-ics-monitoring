@@ -9,6 +9,7 @@ import pandas as pd
 
 def test_niaarm_imports_and_returns_rules_with_expected_attrs():
     from niaarm import Dataset, get_rules
+    from niaarm.mine import Result
     from niapy.algorithms.basic import ParticleSwarmAlgorithm
 
     df = pd.DataFrame({
@@ -19,8 +20,12 @@ def test_niaarm_imports_and_returns_rules_with_expected_attrs():
     dataset = Dataset(df)
     algo = ParticleSwarmAlgorithm(seed=42)
     res = get_rules(dataset, algo, ["support", "confidence"], max_evals=200)
-    rules = res[0] if isinstance(res, tuple) else res
-    assert len(rules) >= 0
+    # API-pin: get_rules MUST return a niaarm.mine.Result(rules, run_time).
+    # Loud failure here means niaarm drifted — STOP and re-evaluate the stage.
+    assert isinstance(res, Result), (
+        f"get_rules returned {type(res)!r}, expected niaarm.mine.Result"
+    )
+    rules = res.rules
     if len(rules) > 0:
         r = rules[0]
         for attr in ("support", "confidence", "antecedent", "consequent"):
