@@ -93,3 +93,134 @@ class Not(BooleanExpr):
         if isinstance(inner, Not):
             return inner.inner.to_dnf()
         raise NotImplementedError
+
+
+def _check_keyword(s: str, pos: int, kw: str) -> bool:
+    if pos + len(kw) > len(s):
+        return False
+    if s[pos:pos + len(kw)] != kw:
+        return False
+    nxt = pos + len(kw)
+    if nxt < len(s):
+        c = s[nxt]
+        if c.isalnum() or c == "_":
+            return False
+    return True
+
+
+def tokenize(expr: str) -> list[tuple[str, str | None]]:
+    tokens: list[tuple[str, str | None]] = []
+    pos = 0
+    n = len(expr)
+    while pos < n:
+        while pos < n and expr[pos].isspace():
+            pos += 1
+        if pos >= n:
+            break
+        if _check_keyword(expr, pos, "AND"):
+            tokens.append(("AND", None))
+            pos += 3
+        elif _check_keyword(expr, pos, "OR"):
+            tokens.append(("OR", None))
+            pos += 2
+        elif _check_keyword(expr, pos, "NOT"):
+            tokens.append(("NOT", None))
+            pos += 3
+        elif expr[pos] == "(":
+            tokens.append(("LP", None))
+            pos += 1
+        elif expr[pos] == ")":
+            tokens.append(("RP", None))
+            pos += 1
+        else:
+            start = pos
+            depth = 0
+            while pos < n:
+                ch = expr[pos]
+                if ch == "(":
+                    depth += 1
+                    pos += 1
+                elif ch == ")":
+                    if depth > 0:
+                        depth -= 1
+                        pos += 1
+                    else:
+                        break
+                elif depth == 0 and (
+                    _check_keyword(expr, pos, "AND")
+                    or _check_keyword(expr, pos, "OR")
+                ):
+                    break
+                else:
+                    pos += 1
+            if pos > start:
+                cond = expr[start:pos].strip()
+                if cond:
+                    tokens.append(("COND", cond))
+                else:
+                    pos += 1 if pos == start else 0
+            else:
+                pos += 1
+    return tokens
+
+
+class _Parser:
+    def __init__(self, tokens: list[tuple[str, str | None]]) -> None:
+        self.t = tokens
+        self.i = 0
+
+    def parse(self) -> BooleanExpr | None:
+        return self._or()
+
+    def _or(self) -> BooleanExpr | None:
+        left = self._and()
+        if left is None:
+            return None
+        while self.i < len(self.t) and self.t[self.i][0] == "OR":
+            self.i += 1
+            right = self._and()
+            if right is None:
+                return None
+            left = Or(left, right)
+        return left
+
+    def _and(self) -> BooleanExpr | None:
+        left = self._not()
+        if left is None:
+            return None
+        while self.i < len(self.t) and self.t[self.i][0] == "AND":
+            self.i += 1
+            right = self._not()
+            if right is None:
+                return None
+            left = And(left, right)
+        return left
+
+    def _not(self) -> BooleanExpr | None:
+        if self.i < len(self.t) and self.t[self.i][0] == "NOT":
+            self.i += 1
+            inner = self._primary()
+            if inner is None:
+                return None
+            return Not(inner)
+        return self._primary()
+
+    def _primary(self) -> BooleanExpr | None:
+        if self.i >= len(self.t):
+            return None
+        kind, payload = self.t[self.i]
+        if kind == "LP":
+            self.i += 1
+            expr = self._or()
+            if self.i < len(self.t) and self.t[self.i][0] == "RP":
+                self.i += 1
+            return expr
+        if kind == "COND":
+            self.i += 1
+            c = parse_atomic_condition_str(payload or "")
+            return None if c is None else Atomic(c)
+        return None
+
+
+def parse_expr(tokens: list[tuple[str, str | None]]) -> BooleanExpr | None:
+    return _Parser(tokens).parse()

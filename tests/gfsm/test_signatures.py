@@ -1,5 +1,6 @@
 from gfsm.signatures import Condition, parse_atomic_condition_str
 from gfsm.signatures import And, Atomic, Not, Or, negate_condition
+from gfsm.signatures import parse_expr, tokenize
 
 
 def test_condition_to_string():
@@ -90,3 +91,39 @@ def test_or_concatenates():
 def test_plain_and_single_conjunction():
     e = And(Atomic(Condition("A", "=", "1")), Atomic(Condition("B", "=", "2")))
     assert e.to_dnf() == [[Condition("A", "=", "1"), Condition("B", "=", "2")]]
+
+
+def test_tokenize_keywords_and_condition():
+    toks = tokenize("A = 1 AND B = 2")
+    kinds = [t[0] for t in toks]
+    assert kinds == ["COND", "AND", "COND"]
+    assert toks[0][1].strip() == "A = 1"
+    assert toks[2][1].strip() == "B = 2"
+
+
+def test_tokenize_word_boundary_not_keyword():
+    # ANDREW must not tokenize as AND.
+    toks = tokenize("ANDREW = 1")
+    assert [t[0] for t in toks] == ["COND"]
+
+
+def test_parse_simple_and_dnf():
+    expr = parse_expr(tokenize("A = 1 AND B = 2"))
+    assert expr.to_dnf() == [
+        [Condition("A", "=", "1"), Condition("B", "=", "2")]
+    ]
+
+
+def test_parse_simple_or_dnf():
+    expr = parse_expr(tokenize("A = 1 OR B = 2"))
+    assert expr.to_dnf() == [
+        [Condition("A", "=", "1")], [Condition("B", "=", "2")]
+    ]
+
+
+def test_parse_paren_precedence():
+    expr = parse_expr(tokenize("(A = 1 OR B = 2) AND C = 3"))
+    assert expr.to_dnf() == [
+        [Condition("A", "=", "1"), Condition("C", "=", "3")],
+        [Condition("B", "=", "2"), Condition("C", "=", "3")],
+    ]
