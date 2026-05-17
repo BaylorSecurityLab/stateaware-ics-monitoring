@@ -10,9 +10,5 @@ def test_networkx_available():
     import networkx  # noqa: F401
 
 
-import pytest
-
-
-@pytest.mark.xfail(reason="cli.py lands in Task J1", strict=True)
 def test_main_module_exposes_main():
     from gfsm.cli import main  # noqa: F401

@@ -16,7 +16,7 @@ from .output import fsm_to_dict
 def extract_plc(name: str, ast_path: str) -> dict[str, Any]:
     try:
         fsm = FsmExtractor.from_path(ast_path).extract()
-    except GfsmError as exc:
+    except (GfsmError, OSError) as exc:
         return {
             "name": name,
             "ast_path": ast_path,
