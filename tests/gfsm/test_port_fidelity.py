@@ -1,6 +1,5 @@
 import json
 import os
-import re
 import shutil
 import subprocess
 from functools import lru_cache
@@ -15,7 +14,6 @@ REPO = Path(__file__).resolve().parents[2]
 GEN = REPO / "data" / "generated"
 RUST_SRC = Path(os.environ.get("TEMP", "/tmp")) / "fsm-extractor"
 TOPOS = ["anytown", "ctown", "ltown"]
-_TS = re.compile(r'"extraction_date"\s*:\s*"[^"]*"')
 
 
 def _norm_json(text: str) -> str:
@@ -67,3 +65,19 @@ def test_python_json_matches_rust(ast: Path):
     ).stdout
     py = fsm_to_json(FsmExtractor.from_path(ast).extract())
     assert _norm_json(py) == _norm_json(rust), ast.name
+
+
+@pytest.mark.skipif(not _INPUTS, reason="generated AST inputs missing")
+@pytest.mark.parametrize("ast", _INPUTS, ids=lambda p: p.stem)
+def test_python_dot_matches_rust(ast: Path):
+    binary = _rust_binary()
+    if binary is None:
+        pytest.skip("cargo / Rust reference binary unavailable")
+    rust = subprocess.run(
+        [binary, "extract", str(ast), "--format", "dot"],
+        check=True, capture_output=True, text=True,
+    ).stdout
+    py = fsm_to_dot(FsmExtractor.from_path(ast).extract())
+    # Rust println! appends a trailing newline; strip both ends to compare
+    # the document body byte-for-byte.
+    assert py.strip() == rust.strip(), ast.name
