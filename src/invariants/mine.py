@@ -27,6 +27,8 @@ def _native(x: object) -> object:
     """Coerce numpy scalars / pandas values to JSON-native types."""
     if x is None:
         return None
+    if isinstance(x, bool):
+        return str(x)
     try:
         return float(x)
     except (TypeError, ValueError):

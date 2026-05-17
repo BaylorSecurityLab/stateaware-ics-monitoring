@@ -28,3 +28,13 @@ def test_mine_state_empty_feature_cols_returns_empty():
     df = pd.DataFrame({"a": [1, 2, 3]})
     cfg = MinerConfig(max_evals=100, seed=42)
     assert mine_state(df, feature_cols=["nonexistent"], cfg=cfg) == []
+
+
+def test_native_does_not_coerce_bool_to_float():
+    from invariants.mine import _native
+    assert _native(True) == "True"
+    assert _native(False) == "False"
+    # sanity: real numerics still become builtin float
+    n = _native(1.5)
+    assert type(n) is float and n == 1.5
+    assert _native(None) is None
