@@ -7,6 +7,8 @@ ProcessPoolExecutor fan-out behind `jobs`.
 from __future__ import annotations
 
 import json
+import os
+from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 from typing import Any
 
@@ -56,11 +58,23 @@ def _fsm_from_dict(d: dict[str, Any]) -> LocalFSM:
     )
 
 
+def _resolve_jobs(jobs: int | None, n_units: int) -> int:
+    if n_units <= 0:
+        return 1
+    if jobs is None:
+        return max(1, min(os.cpu_count() or 1, n_units))
+    return max(1, min(jobs, n_units))
+
+
 def _run_workers(
-    units: list[tuple[str, str]], jobs: int
+    units: list[tuple[str, str]], jobs: int | None
 ) -> list[dict[str, Any]]:
-    # Sequential implementation; Phase I overrides for jobs > 1.
-    return [extract_plc(name, path) for name, path in units]
+    n = _resolve_jobs(jobs, len(units))
+    if n <= 1 or len(units) <= 1:
+        return [extract_plc(name, path) for name, path in units]
+    with ProcessPoolExecutor(max_workers=n) as ex:
+        futures = [ex.submit(extract_plc, name, path) for name, path in units]
+        return [f.result() for f in futures]
 
 
 def _gfsm_to_dict(g) -> dict[str, Any]:
@@ -86,7 +100,7 @@ def analyze_topology(
     topology: str,
     out_dir: Path | None,
     max_states: int = 100_000,
-    jobs: int = 1,
+    jobs: int | None = 1,
 ) -> dict[str, Any]:
     topo_dir = Path(generated_dir) / topology
     analysis_dir = topo_dir / "analysis"
