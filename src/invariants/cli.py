@@ -7,6 +7,7 @@ import json
 import sys
 from pathlib import Path
 
+from stl.model import StlError
 from stl.profiles import get_profile
 
 from .driver import mine_topology
@@ -52,6 +53,13 @@ def _resolve_fb_to_col(
             f"{topo}: profile state_vars ({len(state_vars)}) does not "
             f"match gfsm components ({len(components)})"
         )
+    # ORDERING CONTRACT (load-bearing): components are gfsm-ordered by
+    # (plc, fb.name) ascending (see gfsm.compose._ordered_components);
+    # profile.state_vars MUST be declared in that same ascending order so
+    # this positional zip pairs the right column to each component. The
+    # count mismatch above catches length drift; a same-length REORDER is
+    # NOT caught here — it is verified end-to-end by the ctown golden test
+    # (every label_frame output must be a valid gfsm `states` key).
     return {c: col for c, col in zip(components, state_vars)}
 
 
@@ -59,9 +67,17 @@ def main(argv: list[str] | None = None) -> int:
     args = _build_parser().parse_args(argv)
 
     if args.all:
-        topologies = sorted(
-            d.name for d in args.gfsm_dir.iterdir() if d.is_dir()
-        ) if args.gfsm_dir.exists() else []
+        topologies = (
+            sorted(
+                d.name
+                for d in args.gfsm_dir.iterdir()
+                if d.is_dir()
+                and not d.name.startswith((".", "_"))
+                and (d / f"{d.name}.gfsm.json").exists()
+            )
+            if args.gfsm_dir.exists()
+            else []
+        )
     else:
         topologies = [args.topology]
 
@@ -80,7 +96,7 @@ def main(argv: list[str] | None = None) -> int:
                 max_evals=args.max_evals, seed=args.seed,
                 keep_going=not args.strict,
             )
-        except InvariantsError as exc:
+        except (InvariantsError, StlError) as exc:
             print(f"error: {exc}", file=sys.stderr)
             if not args.all:
                 return 2
