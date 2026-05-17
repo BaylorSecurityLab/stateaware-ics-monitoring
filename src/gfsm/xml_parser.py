@@ -219,5 +219,21 @@ class XmlParser:
         return "".join(parts).strip()
 
     def _extract_assignments(self, if_node: etree._Element) -> list[Assignment]:
-        # Filled in Task B4.
-        return []
+        assignments: list[Assignment] = []
+        for node in if_node.iter():
+            if node.tag == "assignment-statement":
+                assignments.append(self._parse_assignment(node))
+        return assignments
+
+    def _parse_assignment(self, assign_node: etree._Element) -> Assignment:
+        variable = ""
+        value = ""
+        for n in assign_node.iter():
+            if not variable and n.tag == "variable-name" and n.text is not None:
+                variable = n.text
+                break
+        for n in assign_node.iter():
+            if n.tag in ("integer-literal", "boolean-literal") and n.text is not None:
+                value = n.text
+                break
+        return Assignment(variable=variable, value=value)

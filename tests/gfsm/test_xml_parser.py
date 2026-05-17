@@ -182,3 +182,35 @@ def test_empty_condition_when_no_expression():
     </function-block-declaration></iec-source>"""
     fbd = XmlParser(xml).extract_function_block("FB")
     assert fbd.case_elements[0].if_statements[0].condition == ""
+
+
+def test_assignment_extracted():
+    p = XmlParser(PROGRAM_XML)
+    fbd = p.extract_function_block("PLC1")
+    asn = fbd.case_elements[0].if_statements[0].assignments
+    assert len(asn) == 1
+    assert asn[0].variable == "P78_State"
+    assert asn[0].value == "1"
+
+
+def test_assignment_defaults_empty_strings():
+    xml = """<iec-source><function-block-declaration>
+      <derived-function-block-name>FB</derived-function-block-name>
+      <case-statement>
+        <expression><variable-name>S</variable-name></expression>
+        <case-element>
+          <case-list><case-list-element>
+            <integer-literal>10</integer-literal>
+          </case-list-element></case-list>
+          <statement-list><if-statement>
+            <expression><variable-name>X</variable-name></expression>
+            <statement-list><assignment-statement>
+            </assignment-statement></statement-list>
+          </if-statement></statement-list>
+        </case-element>
+      </case-statement>
+    </function-block-declaration></iec-source>"""
+    fbd = XmlParser(xml).extract_function_block("FB")
+    a = fbd.case_elements[0].if_statements[0].assignments[0]
+    assert a.variable == ""
+    assert a.value == ""
