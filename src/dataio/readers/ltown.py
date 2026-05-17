@@ -21,14 +21,14 @@ N_VAL_SIMS = 200
 
 
 def _extract_sim(p_arr, h_arr, f_arr, sim_idx, sensor_idx, tank_idx, pump_link_idx,
-                 n_nodes, n_links, layout):
+                 n_nodes, n_links, layout, tank_elevation_m=TANK_ELEVATION_M):
     p_sim = reshape_to_time_axis(p_arr[sim_idx], n_nodes, N_TIMESTEPS, layout)
     h_sim = reshape_to_time_axis(h_arr[sim_idx], n_nodes, N_TIMESTEPS, layout)
     f_sim = reshape_to_time_axis(f_arr[sim_idx], n_links, N_TIMESTEPS, layout)
     df = pd.DataFrame({
         'iteration': np.arange(N_TIMESTEPS) + sim_idx * N_TIMESTEPS,
         't_local': np.arange(N_TIMESTEPS),
-        TANK_NAME: h_sim[:, tank_idx] - TANK_ELEVATION_M,
+        TANK_NAME: h_sim[:, tank_idx] - tank_elevation_m,
         f'F_{PUMP_NAME}': np.abs(f_sim[:, pump_link_idx]),
     })
     df[PUMP_NAME] = (df[f'F_{PUMP_NAME}'] > 1e-4).astype(float)
@@ -44,6 +44,7 @@ def build_normalized(raw_root: Path):
     Topology .inp:   <raw_root>/'L Town'/'L-TOWN.inp'
     """
     import zarr  # noqa: PLC0415 — lazy import; module must not require zarr at import time
+    import zarr.storage  # noqa: PLC0415 — zarr>=3 moved ZipStore to zarr.storage
 
     raw_root = Path(raw_root)
     ltown_dir = raw_root / "L Town"
@@ -55,11 +56,16 @@ def build_normalized(raw_root: Path):
     if not inp_path.exists():
         raise DataIoError(f"L-TOWN .inp not found: {inp_path}")
 
-    store = zarr.ZipStore(str(simgen_zip), mode='r')
-    root = zarr.open(store, mode='r')
+    store = zarr.storage.ZipStore(str(simgen_zip), mode='r')
+    root = zarr.open(store=store, mode='r')
     pressure_arr = root['pressure']
     head_arr = root['head']
     flow_arr = root['flowrate']
+
+    # Tank elevation / max level are authoritative in the archive itself;
+    # do not hardcode (different simgens use different tanks).
+    tank_elev = float(np.asarray(root['tank_elevation']).flat[0])
+    tank_maxl = float(np.asarray(root['tank_max_level']).flat[0])
 
     sec = parse_inp(inp_path)
     n_j = len(sec['JUNCTIONS'])
@@ -71,11 +77,15 @@ def build_normalized(raw_root: Path):
     n_nodes = n_j + n_r + n_tk
     n_links = n_pi + n_v + n_pu
 
-    layout, _ = detect_layout(head_arr, n_nodes, N_TIMESTEPS)
+    layout, _ = detect_layout(head_arr, n_nodes, N_TIMESTEPS,
+                              tank_elevation_m=tank_elev,
+                              tank_max_level_m=tank_maxl)
     if layout is None:
         raise DataIoError("L-TOWN: could not detect zarr layout (axis_time vs time_axis)")
 
-    tank_idx, _ = find_tank_index(head_arr, n_nodes, layout)
+    tank_idx, _ = find_tank_index(head_arr, n_nodes, layout,
+                                  tank_elevation_m=tank_elev,
+                                  tank_max_level_m=tank_maxl)
     if tank_idx is None:
         tank_idx = n_j  # fallback: first node after junctions
 
@@ -97,7 +107,7 @@ def build_normalized(raw_root: Path):
         raw_df = _extract_sim(
             pressure_arr, head_arr, flow_arr,
             i, sensor_idx, tank_idx, pump_link_idx,
-            n_nodes, n_links, layout,
+            n_nodes, n_links, layout, tank_elev,
         )
         if i == 0:
             # Capture column_map from first sim's raw columns before rename
@@ -111,7 +121,7 @@ def build_normalized(raw_root: Path):
         raw_df = _extract_sim(
             pressure_arr, head_arr, flow_arr,
             i, sensor_idx, tank_idx, pump_link_idx,
-            n_nodes, n_links, layout,
+            n_nodes, n_links, layout, tank_elev,
         )
         raw_df = raw_df.rename(columns=column_map)
         val_frames.append(raw_df)

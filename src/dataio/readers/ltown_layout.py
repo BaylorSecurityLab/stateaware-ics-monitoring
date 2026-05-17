@@ -36,7 +36,9 @@ def reshape_to_time_axis(flat_sim, n_axis, n_t, layout):
     return flat_sim.reshape(n_axis, n_t).T
 
 
-def detect_layout(head_arr, n_nodes, n_t, n_sims_probe=10):
+def detect_layout(head_arr, n_nodes, n_t, n_sims_probe=10,
+                  tank_elevation_m=TANK_ELEVATION_M,
+                  tank_max_level_m=TANK_MAX_LEVEL_M):
     results = {}
     for layout in ('axis_time', 'time_axis'):
         cand = {}
@@ -45,7 +47,7 @@ def detect_layout(head_arr, n_nodes, n_t, n_sims_probe=10):
             late = grid[1:]
             mn = late.min(axis=0)
             mx = late.max(axis=0)
-            in_range = (mn >= TANK_ELEVATION_M - 0.2) & (mx <= TANK_ELEVATION_M + TANK_MAX_LEVEL_M + 0.2)
+            in_range = (mn >= tank_elevation_m - 0.2) & (mx <= tank_elevation_m + tank_max_level_m + 0.2)
             for n in np.where(in_range)[0]:
                 cand[n] = cand.get(n, 0) + 1
         if cand:
@@ -59,7 +61,9 @@ def detect_layout(head_arr, n_nodes, n_t, n_sims_probe=10):
     return best, results[best][0]
 
 
-def find_tank_index(head_arr, n_nodes, layout, n_sims_probe=10):
+def find_tank_index(head_arr, n_nodes, layout, n_sims_probe=10,
+                    tank_elevation_m=TANK_ELEVATION_M,
+                    tank_max_level_m=TANK_MAX_LEVEL_M):
     candidate_freq = np.zeros(n_nodes, dtype=int)
     sample_means = {n: [] for n in range(n_nodes)}
     for s in range(min(n_sims_probe, head_arr.shape[0])):
@@ -67,7 +71,7 @@ def find_tank_index(head_arr, n_nodes, layout, n_sims_probe=10):
         late = grid[1:]
         node_min = late.min(axis=0)
         node_max = late.max(axis=0)
-        in_range = (node_min >= TANK_ELEVATION_M - 0.2) & (node_max <= TANK_ELEVATION_M + TANK_MAX_LEVEL_M + 0.2)
+        in_range = (node_min >= tank_elevation_m - 0.2) & (node_max <= tank_elevation_m + tank_max_level_m + 0.2)
         for n in np.where(in_range)[0]:
             candidate_freq[n] += 1
             sample_means[n].append(float(late[:, n].mean()))
