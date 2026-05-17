@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 import pandas as pd
+import yaml
 
 from .manifest import build_manifest
 from .mine import MinerConfig, mine_state
@@ -35,14 +36,14 @@ def _load_calibration(
     man = ds / "dataset_manifest.yaml"
     if not man.exists():
         raise InvariantsError(f"dataset manifest not found: {man}")
-    import yaml
-    cfg = yaml.safe_load(man.read_text()) or {}
+    man_text = man.read_text()
+    cfg = yaml.safe_load(man_text) or {}
     cal_files = (cfg.get("files") or {}).get("calibration") or []
     if not cal_files:
         raise InvariantsError(f"{topology}: no calibration files listed")
     frames = [pd.read_csv(ds / rel) for rel in cal_files]
     df = pd.concat(frames, ignore_index=True)
-    return df, man.read_text(), man.name
+    return df, man_text, man.name
 
 
 def mine_topology(
@@ -72,7 +73,8 @@ def mine_topology(
 
     if feature_cols is None:
         skip = set(fb_to_col.values())
-        feature_cols = [c for c in cal_df.columns if c not in skip]
+        numeric = cal_df.select_dtypes(include="number").columns
+        feature_cols = [c for c in numeric if c not in skip]
 
     cfg = MinerConfig(max_evals=max_evals, seed=seed)
     states: dict[str, dict[str, Any]] = {}

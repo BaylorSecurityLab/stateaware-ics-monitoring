@@ -54,3 +54,36 @@ def test_mine_topology_writes_phi_and_manifest(tmp_path: Path):
     assert m["all_ok"] in (True, False)
     # Φ JSON must be serializable end-to-end (it was just written, re-load it):
     json.loads((out / "synth_phi.json").read_text())
+
+
+def test_missing_gfsm_manifest_raises(tmp_path: Path):
+    gfsm_dir = tmp_path / "gfsm"
+    gfsm_dir.mkdir()
+    (gfsm_dir / "synth.gfsm.json").write_text(json.dumps({
+        "initial": "PLC1:0", "states": {"PLC1:0": ["0"]},
+        "transitions": [], "metadata": {"source_file": "x",
+            "extraction_date": "", "total_states": 1, "total_transitions": 0},
+        "max_states": 100,
+    }))
+    # gfsm json present but the _gfsm_manifest.json is absent
+    with pytest.raises(InvariantsError, match="gfsm manifest not found"):
+        mine_topology(topology="synth", data_root=tmp_path,
+                      gfsm_dir=gfsm_dir, out_dir=tmp_path / "out",
+                      fb_to_col={("PLC1", "#0"): "p1"})
+
+
+def test_missing_dataset_manifest_raises(tmp_path: Path):
+    gfsm_dir = tmp_path / "gfsm"
+    gfsm_dir.mkdir()
+    (gfsm_dir / "synth.gfsm.json").write_text(json.dumps({
+        "initial": "PLC1:0", "states": {"PLC1:0": ["0"]},
+        "transitions": [], "metadata": {"source_file": "x",
+            "extraction_date": "", "total_states": 1, "total_transitions": 0},
+        "max_states": 100,
+    }))
+    (gfsm_dir / "synth_gfsm_manifest.json").write_text(json.dumps({"x": 1}))
+    # no data_root/synth/dataset/dataset_manifest.yaml
+    with pytest.raises(InvariantsError, match="dataset manifest not found"):
+        mine_topology(topology="synth", data_root=tmp_path,
+                      gfsm_dir=gfsm_dir, out_dir=tmp_path / "out",
+                      fb_to_col={("PLC1", "#0"): "p1"})
