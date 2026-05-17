@@ -129,3 +129,56 @@ def test_no_case_statement_raises():
     p = XmlParser(xml)
     with pytest.raises(GfsmError, match="No case statement"):
         p.extract_function_block("P")
+
+
+def test_if_condition_flattened():
+    p = XmlParser(PROGRAM_XML)
+    fbd = p.extract_function_block("PLC1")
+    ce = fbd.case_elements[0]
+    assert len(ce.if_statements) == 1
+    assert ce.if_statements[0].condition == "T41 < 5"
+
+
+def test_logical_and_not_flattening():
+    xml = """<iec-source><function-block-declaration>
+      <derived-function-block-name>FB</derived-function-block-name>
+      <case-statement>
+        <expression><variable-name>S</variable-name></expression>
+        <case-element>
+          <case-list><case-list-element>
+            <integer-literal>10</integer-literal>
+          </case-list-element></case-list>
+          <statement-list><if-statement>
+            <expression>
+              <variable-name>A</variable-name><equal/><integer-literal>1</integer-literal>
+              <logical-and/>
+              <logical-not/><variable-name>B</variable-name>
+            </expression>
+            <statement-list></statement-list>
+          </if-statement></statement-list>
+        </case-element>
+      </case-statement>
+    </function-block-declaration></iec-source>"""
+    fbd = XmlParser(xml).extract_function_block("FB")
+    assert fbd.case_elements[0].if_statements[0].condition == (
+        "A = 1 AND NOT B"
+    )
+
+
+def test_empty_condition_when_no_expression():
+    xml = """<iec-source><function-block-declaration>
+      <derived-function-block-name>FB</derived-function-block-name>
+      <case-statement>
+        <expression><variable-name>S</variable-name></expression>
+        <case-element>
+          <case-list><case-list-element>
+            <integer-literal>10</integer-literal>
+          </case-list-element></case-list>
+          <statement-list><if-statement>
+            <statement-list></statement-list>
+          </if-statement></statement-list>
+        </case-element>
+      </case-statement>
+    </function-block-declaration></iec-source>"""
+    fbd = XmlParser(xml).extract_function_block("FB")
+    assert fbd.case_elements[0].if_statements[0].condition == ""

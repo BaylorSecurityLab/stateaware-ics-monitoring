@@ -163,5 +163,61 @@ class XmlParser:
     def _extract_if_statements(
         self, element_node: etree._Element
     ) -> list[IfStatement]:
-        # Filled in Task B3.
+        statements: list[IfStatement] = []
+        for node in element_node.iter():
+            if node.tag == "if-statement":
+                statements.append(self._parse_if_statement(node))
+        return statements
+
+    def _parse_if_statement(self, if_node: etree._Element) -> IfStatement:
+        condition = self._extract_expression(if_node)
+        assignments = self._extract_assignments(if_node)
+        return IfStatement(condition=condition, assignments=assignments)
+
+    def _extract_expression(self, node: etree._Element) -> str:
+        expr = _first(node, "expression")
+        if expr is None:
+            return ""
+        return self._parse_expression_node(expr)
+
+    def _parse_expression_node(self, expr_node: etree._Element) -> str:
+        parts: list[str] = []
+        in_not = False
+        for n in expr_node.iter():
+            tag = n.tag
+            if tag == "logical-not":
+                in_not = True
+            elif tag == "logical-and":
+                parts.append(" AND ")
+            elif tag == "logical-or":
+                parts.append(" OR ")
+            elif tag == "equal":
+                parts.append(" = ")
+            elif tag == "not-equal":
+                parts.append(" <> ")
+            elif tag == "less-than":
+                parts.append(" < ")
+            elif tag == "less-or-equal":
+                parts.append(" <= ")
+            elif tag == "greater-than":
+                parts.append(" > ")
+            elif tag == "greater-or-equal":
+                parts.append(" >= ")
+            elif tag == "adding":
+                parts.append(" + ")
+            elif tag == "subtracting":
+                parts.append(" - ")
+            elif tag == "variable-name":
+                if n.text is not None:
+                    if in_not:
+                        parts.append("NOT ")
+                        in_not = False
+                    parts.append(n.text)
+            elif tag in ("integer-literal", "boolean-literal"):
+                if n.text is not None:
+                    parts.append(n.text)
+        return "".join(parts).strip()
+
+    def _extract_assignments(self, if_node: etree._Element) -> list[Assignment]:
+        # Filled in Task B4.
         return []
