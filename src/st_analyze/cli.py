@@ -69,6 +69,7 @@ def main(argv: list[str] | None = None) -> int:
         topologies = [args.topology]
 
     overall_ok = True
+    had_error = False
     for topology in topologies:
         try:
             manifest = analyze_topology(
@@ -79,7 +80,10 @@ def main(argv: list[str] | None = None) -> int:
             )
         except StAnalyzeError as exc:
             print(f"error: {exc}", file=sys.stderr)
-            return 2
+            if not args.all:
+                return 2
+            had_error = True
+            continue
 
         if not manifest.get("all_ok", True):
             overall_ok = False
@@ -91,6 +95,8 @@ def main(argv: list[str] | None = None) -> int:
             )
             print(json.dumps(manifest, indent=2))
 
+    if had_error:
+        return 2
     return 0 if overall_ok else 1
 
 
