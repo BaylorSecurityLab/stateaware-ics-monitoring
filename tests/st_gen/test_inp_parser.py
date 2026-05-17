@@ -84,3 +84,17 @@ def test_empty_rules_section_ok(tmp_path):
     )
     net = parse_inp(inp)
     assert len(net.controls) == 1
+
+
+def test_parse_control_leading_dot_threshold(tmp_path):
+    """EPANET allows thresholds like `.5` with no leading digit (seen in ctown CONTROLS)."""
+    inp = tmp_path / "dot.inp"
+    inp.write_text(
+        "[CONTROLS]\nLINK V2 OPEN IF NODE T2 BELOW .5\n[END]\n",
+        encoding="utf-8",
+    )
+    net = parse_inp(inp)
+    assert len(net.controls) == 1
+    assert net.controls[0].threshold == 0.5
+    assert net.controls[0].link_id == "V2"
+    assert net.controls[0].comparator == "BELOW"
