@@ -34,3 +34,62 @@ def parse_atomic_condition_str(expr: str) -> "Condition | None":
                 value = value[1:-1].strip()
             return Condition(variable, op, value)
     return None
+
+
+def negate_condition(cond: Condition) -> Condition:
+    table = {"=": "<>", "<>": "=", "<": ">=", "<=": ">", ">": "<=", ">=": "<"}
+    return Condition(cond.variable, table.get(cond.operator, "="), cond.value)
+
+
+class BooleanExpr:
+    def to_dnf(self) -> list[list[Condition]]:  # pragma: no cover - overridden
+        raise NotImplementedError
+
+
+@dataclass
+class Atomic(BooleanExpr):
+    cond: Condition
+
+    def to_dnf(self) -> list[list[Condition]]:
+        return [[self.cond]]
+
+
+@dataclass
+class And(BooleanExpr):
+    left: BooleanExpr
+    right: BooleanExpr
+
+    def to_dnf(self) -> list[list[Condition]]:
+        left_dnf = self.left.to_dnf()
+        right_dnf = self.right.to_dnf()
+        result: list[list[Condition]] = []
+        for lt in left_dnf:
+            for rt in right_dnf:
+                result.append([*lt, *rt])
+        return result
+
+
+@dataclass
+class Or(BooleanExpr):
+    left: BooleanExpr
+    right: BooleanExpr
+
+    def to_dnf(self) -> list[list[Condition]]:
+        return [*self.left.to_dnf(), *self.right.to_dnf()]
+
+
+@dataclass
+class Not(BooleanExpr):
+    inner: BooleanExpr
+
+    def to_dnf(self) -> list[list[Condition]]:
+        inner = self.inner
+        if isinstance(inner, Atomic):
+            return [[negate_condition(inner.cond)]]
+        if isinstance(inner, And):
+            return Or(Not(inner.left), Not(inner.right)).to_dnf()
+        if isinstance(inner, Or):
+            return And(Not(inner.left), Not(inner.right)).to_dnf()
+        if isinstance(inner, Not):
+            return inner.inner.to_dnf()
+        raise NotImplementedError
