@@ -22,6 +22,8 @@ def emit(
     out_dir: str | Path,
     topology: str,
     write_manifest: bool = True,
+    inp_filename: str = "",
+    plcs_filename: str = "",
 ) -> Manifest:
     """Emit one .st file per PLC and (optionally) a manifest.
 
@@ -52,8 +54,8 @@ def emit(
 
     manifest = Manifest(
         topology=topology,
-        inp="",
-        plcs_yaml="",
+        inp=inp_filename,
+        plcs_yaml=plcs_filename,
         generated_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
         plcs=plc_entries,
     )

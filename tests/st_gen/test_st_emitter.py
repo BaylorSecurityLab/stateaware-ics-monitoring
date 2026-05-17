@@ -145,3 +145,23 @@ def test_multi_state_actuator_raises(tmp_path):
     with pytest.raises(MultiStateActuatorError) as exc:
         emit(net, plcs, out_dir=tmp_path, topology="x")
     assert "P1" in str(exc.value)
+
+
+def test_manifest_contains_provenance_and_fsm_summary(tmp_path):
+    net = _net_minitown_like()
+    plcs = [Plc(name="PLC1", sensors=["TANK"], actuators=["PUMP1"])]
+    manifest = emit(
+        net, plcs, out_dir=tmp_path, topology="mini",
+        inp_filename="mini.inp", plcs_filename="mini_plcs.yaml",
+    )
+    raw = json.loads((tmp_path / "mini_manifest.json").read_text(encoding="utf-8"))
+    assert raw["topology"] == "mini"
+    assert raw["inp"] == "mini.inp"
+    assert raw["plcs_yaml"] == "mini_plcs.yaml"
+    assert raw["generated_at"]  # non-empty ISO string
+    plc0 = raw["plcs"][0]
+    assert plc0["name"] == "PLC1"
+    assert plc0["file"] == "mini_plc1.st"
+    assert plc0["actuators"] == ["PUMP1"]
+    assert plc0["fsms"] == [{"actuator": "PUMP1", "states": 2, "transitions": 2}]
+    assert plc0["sensors_referenced"] == [{"id": "TANK", "owner_plc": "PLC1"}]
