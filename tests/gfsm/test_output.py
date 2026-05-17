@@ -1,7 +1,7 @@
 import json
 
 from gfsm.model import FunctionBlock, LocalFSM, Metadata, State, Transition
-from gfsm.output import fsm_to_dict, fsm_to_json
+from gfsm.output import fsm_to_dict, fsm_to_json, fsm_to_dot
 
 
 def _sample() -> LocalFSM:
@@ -37,3 +37,30 @@ def test_fsm_to_json_is_2space_unsorted():
     # round-trips and preserves state insertion order
     back = json.loads(js)
     assert list(back["function_blocks"][0]["states"].keys()) == ["10", "20"]
+
+
+def test_fsm_to_dot_exact_text():
+    dot = fsm_to_dot(_sample())
+    expected = (
+        'digraph "FB" {\n'
+        "    rankdir=LR;\n"
+        "    node [shape=circle, style=filled, fillcolor=lightblue];\n"
+        "    edge [fontsize=10];\n"
+        "\n"
+        '    "10" [label="10"];\n'
+        '    "20" [label="20"];\n'
+        "\n"
+        '    "10" -> "20" [label="A = 1"];\n'
+        "}"
+    )
+    assert dot == expected
+
+
+def test_dot_escapes_quotes_and_newlines():
+    fb = FunctionBlock.new("FB", "S")
+    fb.add_state(State.new("10"))
+    fb.add_state(State.new("20"))
+    fb.add_transition(Transition.new("10", "20", 'a"b\nc'))
+    m = Metadata("s", "t", 2, 1)
+    dot = fsm_to_dot(LocalFSM(function_blocks=[fb], metadata=m))
+    assert '[label="a\\"b\\nc"]' in dot

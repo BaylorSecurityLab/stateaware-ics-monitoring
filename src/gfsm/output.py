@@ -58,3 +58,29 @@ def fsm_to_dict(fsm: LocalFSM) -> dict[str, Any]:
 
 def fsm_to_json(fsm: LocalFSM) -> str:
     return json.dumps(fsm_to_dict(fsm), indent=2, ensure_ascii=False)
+
+
+def fsm_to_dot(fsm: LocalFSM) -> str:
+    chunks: list[str] = []
+    parts: list[str] = []
+    for idx, fb in enumerate(fsm.function_blocks):
+        if idx > 0:
+            parts.append("\n\n")
+        parts.append(f'digraph "{fb.name}" {{\n')
+        parts.append("    rankdir=LR;\n")
+        parts.append(
+            "    node [shape=circle, style=filled, fillcolor=lightblue];\n"
+        )
+        parts.append("    edge [fontsize=10];\n\n")
+        for sid in fb.states.keys():
+            parts.append(f'    "{sid}" [label="{sid}"];\n')
+        parts.append("\n")
+        for tr in fb.transitions:
+            label = tr.condition.replace('"', '\\"').replace("\n", "\\n")
+            parts.append(
+                f'    "{tr.from_state}" -> "{tr.to_state}" '
+                f'[label="{label}"];\n'
+            )
+        parts.append("}")
+    chunks.append("".join(parts))
+    return "".join(chunks)
