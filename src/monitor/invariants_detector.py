@@ -1,0 +1,118 @@
+"""Φ-bound anomaly detector.
+
+Loads the persisted Φ JSON (built by `invariants-mine`) and flags rows
+whose composite-state is absent from Φ, or whose antecedent fires but
+consequent fails. Build-once / reuse-many: `fit` deserializes Φ and
+verifies it is not stale vs the current gfsm manifest (sha256).
+"""
+
+from __future__ import annotations
+
+import hashlib
+import json
+from pathlib import Path
+from typing import Any
+
+import numpy as np
+import pandas as pd
+
+from invariants.model import InvariantsError
+from invariants.state_label import label_frame
+
+from .model import MonitorError
+from .protocol import StepFlags
+
+
+def _atom_holds(row: pd.Series, atom: dict[str, Any]) -> bool:
+    col = atom["col"]
+    if col not in row.index:
+        return False
+    v = row[col]
+    op = atom["op"]
+    val = atom["val"]
+    if op == "in":
+        lo, hi = (val if isinstance(val, list) and len(val) == 2
+                  else (None, None))
+        if lo is not None and v < lo:
+            return False
+        if hi is not None and v > hi:
+            return False
+        return True
+    if op == "==":
+        return v == val
+    if op == ">=":
+        return v >= val
+    if op == "<=":
+        return v <= val
+    if op == ">":
+        return v > val
+    if op == "<":
+        return v < val
+    return False
+
+
+def _all_hold(row: pd.Series, atoms: list[dict[str, Any]]) -> bool:
+    return all(_atom_holds(row, a) for a in atoms)
+
+
+class InvariantsAnomalyDetector:
+    name = "invariants"
+
+    def __init__(
+        self,
+        *,
+        invariants_dir: Path,
+        gfsm_dir: Path,
+        topology: str,
+        components: list[tuple[str, str]],
+        fb_to_col: dict[tuple[str, str], str],
+    ):
+        self._dir = Path(invariants_dir)
+        self._gfsm_dir = Path(gfsm_dir)
+        self._topology = topology
+        self._components = components
+        self._fb_to_col = fb_to_col
+        self._phi: dict[str, list[dict[str, Any]]] = {}
+
+    def fit(self, calibration_frames: list[pd.DataFrame]
+            ) -> "InvariantsAnomalyDetector":
+        path = self._dir / f"{self._topology}_phi.json"
+        if not path.exists():
+            raise MonitorError(f"phi json not found: {path}")
+        data = json.loads(path.read_text())
+        # Staleness: Φ recorded the gfsm manifest sha256 it was mined
+        # against; if the current gfsm manifest differs, Φ is stale.
+        recorded = data.get("gfsm_manifest_sha256")
+        gman = self._gfsm_dir / f"{self._topology}_gfsm_manifest.json"
+        if recorded is not None and gman.exists():
+            actual = hashlib.sha256(
+                gman.read_text().encode("utf-8")).hexdigest()
+            if recorded != actual:
+                raise MonitorError(
+                    "stale Φ artifact (gfsm manifest sha mismatch); "
+                    "re-run invariants-mine"
+                )
+        self._phi = {
+            s: (e.get("rules") or [])
+            for s, e in (data.get("states") or {}).items()
+        }
+        return self
+
+    def predict(self, frame: pd.DataFrame) -> StepFlags:
+        try:
+            labels = label_frame(frame, self._components, self._fb_to_col)
+        except InvariantsError as exc:
+            raise MonitorError(str(exc)) from exc
+        flags = np.zeros(len(frame), dtype=int)
+        for i, s in enumerate(labels):
+            rules = self._phi.get(s)
+            if rules is None:
+                flags[i] = 1  # composite state absent from Φ
+                continue
+            row = frame.iloc[i]
+            for r in rules:
+                if _all_hold(row, r.get("antecedent", [])):
+                    if not _all_hold(row, r.get("consequent", [])):
+                        flags[i] = 1
+                        break
+        return StepFlags(flags=flags, scores=flags.astype(float))
