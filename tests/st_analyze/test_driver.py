@@ -98,3 +98,30 @@ def test_fsm_listed_but_empty_pdg_is_error(tmp_path: Path):
     assert plc1["status"] == "error"
     assert "st_gen manifest lists FSMs but PDG is empty" in plc1["errors"]
     assert m["all_ok"] is False
+
+
+def test_parse_failure_with_fsms_has_no_spurious_crosscheck_error(tmp_path: Path):
+    topo = tmp_path / "synth"
+    topo.mkdir()
+    # Unparseable ST → analyze_source returns ok=False with a parse error
+    # and an empty PDG. The manifest also lists an FSM for this PLC.
+    (topo / "synth_plc1.st").write_text(
+        "@@@ this is definitely not structured text @@@\n"
+    )
+    (topo / "synth_manifest.json").write_text(json.dumps({
+        "topology": "synth",
+        "plcs": [
+            {"name": "PLC1", "file": "synth_plc1.st",
+             "fsms": [{"actuator": "P1", "states": 2, "transitions": 2}]},
+        ],
+    }))
+    m = analyze_topology(
+        generated_dir=tmp_path, topology="synth", out_dir=tmp_path / "out"
+    )
+    plc1 = m["plcs"][0]
+    assert plc1["status"] == "error"
+    # The real cause (parse failure) must be reported...
+    assert any("parse failed" in e for e in plc1["errors"])
+    # ...and the spurious FSM/PDG cross-check message must NOT appear.
+    assert "st_gen manifest lists FSMs but PDG is empty" not in plc1["errors"]
+    assert m["all_ok"] is False
