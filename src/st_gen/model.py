@@ -70,3 +70,12 @@ class MultiStateActuatorError(StGenError):
 
 class ValidationError(StGenError):
     """Raised when plcs.yaml fails schema validation."""
+
+
+@dataclass(frozen=True)
+class Manifest:
+    topology: str
+    inp: str
+    plcs_yaml: str
+    generated_at: str
+    plcs: list[dict]
