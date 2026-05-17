@@ -7,6 +7,7 @@ FIFO, global-state ids are canonical strings.
 
 from __future__ import annotations
 
+import itertools
 from collections import deque
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -104,3 +105,96 @@ def _global_guard_str(dnf: list[list[Condition]]) -> str:
     if uniq == ["TRUE"]:
         return "TRUE"
     return " OR ".join(uniq)
+
+
+def compose_global(
+    fsms: dict[str, LocalFSM],
+    *,
+    max_states: int = DEFAULT_MAX_STATES,
+    source_file: str = "<composed>",
+) -> GlobalFSM:
+    comps = _ordered_components(fsms)
+    if not comps:
+        raise GfsmError("no function blocks to compose")
+
+    init_local = tuple(_component_initial(c.fb) for c in comps)
+    init_id = _encode(comps, init_local)
+
+    states: dict[str, tuple[str, ...]] = {init_id: init_local}
+    transitions: list[dict[str, Any]] = []
+    seen_tr: set[tuple[str, str, str]] = set()
+
+    frontier: deque[tuple[str, tuple[str, ...]]] = deque()
+    frontier.append((init_id, init_local))
+
+    while frontier:
+        cur_id, cur_local = frontier.popleft()
+
+        per_comp_choices = []
+        for i, c in enumerate(comps):
+            cc = _component_choices(c.fb, cur_local[i])
+            # Semantics B (spec §6, user-confirmed): a component with viable
+            # moves may ALSO stutter, so single-mover interleavings exist
+            # alongside joint moves. `_component_choices` returns the
+            # stutter-only sentinel `[(cur, None, [[]])]` when nothing is
+            # viable; only append the stutter option when there is at least
+            # one real move (avoid a duplicate all-stutter entry).
+            if any(tid is not None for _t, tid, _d in cc):
+                cc = cc + [(cur_local[i], None, [[]])]
+            per_comp_choices.append(cc)
+
+        for combo in itertools.product(*per_comp_choices):
+            # combo[i] = (target, tid_or_None, dnf)
+            if all(tid is None for _t, tid, _d in combo):
+                continue  # all-stutter step dropped
+
+            moving_dnfs = [
+                dnf for _t, tid, dnf in combo if tid is not None
+            ]
+            guard_dnf = _conjoin_dnf(moving_dnfs)
+            if is_syntactically_unsat(guard_dnf):
+                continue
+
+            next_local = tuple(t for t, _tid, _d in combo)
+            next_id = _encode(comps, next_local)
+
+            if next_id not in states:
+                if len(states) + 1 > max_states:
+                    raise GfsmError(
+                        f"global FSM exceeds --max-states={max_states} "
+                        f"(state explosion); aborting"
+                    )
+                states[next_id] = next_local
+                frontier.append((next_id, next_local))
+
+            provenance = {
+                f"{c.plc}:{c.fb.name}": tid
+                for c, (_t, tid, _d) in zip(comps, combo)
+            }
+            guard = _global_guard_str(guard_dnf)
+            key = (cur_id, next_id, guard)
+            if key in seen_tr:
+                continue
+            seen_tr.add(key)
+            transitions.append({
+                "id": f"{cur_id}=>{next_id}",
+                "from": cur_id,
+                "to": next_id,
+                "guard": guard,
+                "components": provenance,
+            })
+
+    transitions.sort(key=lambda t: (t["from"], t["to"], t["guard"]))
+    md = Metadata(
+        source_file=source_file,
+        extraction_date=datetime.now(timezone.utc).isoformat(),
+        total_states=len(states),
+        total_transitions=len(transitions),
+    )
+    return GlobalFSM(
+        states=states,
+        transitions=transitions,
+        initial=init_id,
+        metadata=md,
+        max_states=max_states,
+    )
