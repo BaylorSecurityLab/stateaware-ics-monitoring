@@ -54,7 +54,7 @@ def test_emit_single_actuator(tmp_path):
     assert "PUMP1_State : INT := 0;" in text
     # CASE block transitions
     assert "CASE PUMP1_State OF" in text
-    assert "IF TANK < 4.0 THEN" in text
+    assert "IF TANK < 4 THEN" in text
     assert "PUMP1_State := 1;" in text
     assert "IF TANK > 6.3 THEN" in text
     assert "PUMP1_State := 0;" in text
@@ -165,3 +165,21 @@ def test_manifest_contains_provenance_and_fsm_summary(tmp_path):
     assert plc0["actuators"] == ["PUMP1"]
     assert plc0["fsms"] == [{"actuator": "PUMP1", "states": 2, "transitions": 2}]
     assert plc0["sensors_referenced"] == [{"id": "TANK", "owner_plc": "PLC1"}]
+
+
+def test_threshold_formatting_is_clean(tmp_path):
+    net = Network(
+        tanks=[],
+        pumps=[Pump("P1", "A", "B")],
+        valves=[],
+        controls=[
+            Control("P1", "OPEN", "T1", "BELOW", 2.4000000001),
+            Control("P1", "CLOSED", "T1", "ABOVE", 5.0),
+        ],
+    )
+    plcs = [Plc(name="PLC1", sensors=["T1"], actuators=["P1"])]
+    emit(net, plcs, out_dir=tmp_path, topology="x", inp_filename="x.inp", plcs_filename="x_plcs.yaml")
+    text = (tmp_path / "x_plc1.st").read_text(encoding="utf-8")
+    assert "IF T1 < 2.4 THEN" in text          # FP noise stripped
+    assert "IF T1 > 5 THEN" in text             # 5.0 -> 5 via :g
+    assert "from x.inp + x_plcs.yaml" in text   # header provenance
