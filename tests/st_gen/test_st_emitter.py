@@ -128,3 +128,20 @@ def test_emit_actuator_without_controls_is_empty_shell(tmp_path):
     assert "PROGRAM PLC2" in text
     assert "No actuators with [CONTROLS] entries" in text
     assert "CASE" not in text   # no CASE blocks emitted
+
+
+def test_multi_state_actuator_raises(tmp_path):
+    net = Network(
+        tanks=[],
+        pumps=[Pump("P1", "A", "B")],
+        valves=[],
+        controls=[
+            Control("P1", "OPEN", "T1", "BELOW", 1.0),
+            Control("P1", "OPEN", "T1", "BELOW", 2.0),
+            Control("P1", "CLOSED", "T1", "ABOVE", 5.0),
+        ],
+    )
+    plcs = [Plc(name="PLC1", sensors=["T1"], actuators=["P1"])]
+    with pytest.raises(MultiStateActuatorError) as exc:
+        emit(net, plcs, out_dir=tmp_path, topology="x")
+    assert "P1" in str(exc.value)
