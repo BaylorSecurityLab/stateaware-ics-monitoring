@@ -102,3 +102,29 @@ def test_emit_multi_actuator_and_cross_plc_sensor(tmp_path):
     p3 = (tmp_path / "ct_plc3.st").read_text(encoding="utf-8")
     assert "T2 : REAL;" in p3
     assert "(* owned by this PLC *)" in p3
+
+
+def test_emit_sensor_only_plc(tmp_path):
+    net = Network(tanks=[], pumps=[], valves=[], controls=[])
+    plcs = [Plc(name="PLC9", sensors=["T7"], actuators=[])]
+    emit(net, plcs, out_dir=tmp_path, topology="ct")
+    text = (tmp_path / "ct_plc9.st").read_text(encoding="utf-8")
+    assert "PROGRAM PLC9" in text
+    assert "No actuators with [CONTROLS] entries" in text
+    assert "END_PROGRAM" in text
+
+
+def test_emit_actuator_without_controls_is_empty_shell(tmp_path):
+    # L-Town PRV pattern: actuator with static setting, no [CONTROLS].
+    net = Network(
+        tanks=[],
+        pumps=[],
+        valves=[Valve("PRV_1", "A", "B", "PRV", 40.0)],
+        controls=[],
+    )
+    plcs = [Plc(name="PLC2", sensors=["p227"], actuators=["PRV_1"])]
+    emit(net, plcs, out_dir=tmp_path, topology="lt")
+    text = (tmp_path / "lt_plc2.st").read_text(encoding="utf-8")
+    assert "PROGRAM PLC2" in text
+    assert "No actuators with [CONTROLS] entries" in text
+    assert "CASE" not in text   # no CASE blocks emitted
