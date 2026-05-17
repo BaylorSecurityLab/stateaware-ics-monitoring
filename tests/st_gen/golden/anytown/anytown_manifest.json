@@ -1,0 +1,52 @@
+{
+  "topology": "anytown",
+  "inp": "anytown.inp",
+  "plcs_yaml": "anytown_plcs.yaml",
+  "generated_at": "2026-05-17T00:55:23+00:00",
+  "plcs": [
+    {
+      "name": "PLC1",
+      "file": "anytown_plc1.st",
+      "actuators": [
+        "P78",
+        "P79"
+      ],
+      "sensors_referenced": [
+        {
+          "id": "T41",
+          "owner_plc": "PLC2"
+        },
+        {
+          "id": "T42",
+          "owner_plc": "PLC3"
+        }
+      ],
+      "fsms": [
+        {
+          "actuator": "P78",
+          "states": 2,
+          "transitions": 2
+        },
+        {
+          "actuator": "P79",
+          "states": 2,
+          "transitions": 2
+        }
+      ]
+    },
+    {
+      "name": "PLC2",
+      "file": "anytown_plc2.st",
+      "actuators": [],
+      "sensors_referenced": [],
+      "fsms": []
+    },
+    {
+      "name": "PLC3",
+      "file": "anytown_plc3.st",
+      "actuators": [],
+      "sensors_referenced": [],
+      "fsms": []
+    }
+  ]
+}

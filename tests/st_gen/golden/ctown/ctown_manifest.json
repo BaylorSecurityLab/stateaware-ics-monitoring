@@ -1,0 +1,164 @@
+{
+  "topology": "ctown",
+  "inp": "ctown.inp",
+  "plcs_yaml": "ctown_plcs.yaml",
+  "generated_at": "2026-05-17T00:55:23+00:00",
+  "plcs": [
+    {
+      "name": "PLC1",
+      "file": "ctown_plc1.st",
+      "actuators": [
+        "PU1",
+        "PU2"
+      ],
+      "sensors_referenced": [
+        {
+          "id": "T1",
+          "owner_plc": "PLC2"
+        }
+      ],
+      "fsms": [
+        {
+          "actuator": "PU1",
+          "states": 2,
+          "transitions": 2
+        },
+        {
+          "actuator": "PU2",
+          "states": 2,
+          "transitions": 2
+        }
+      ]
+    },
+    {
+      "name": "PLC2",
+      "file": "ctown_plc2.st",
+      "actuators": [],
+      "sensors_referenced": [],
+      "fsms": []
+    },
+    {
+      "name": "PLC3",
+      "file": "ctown_plc3.st",
+      "actuators": [
+        "V2",
+        "PU4",
+        "PU5",
+        "PU6",
+        "PU7"
+      ],
+      "sensors_referenced": [
+        {
+          "id": "T2",
+          "owner_plc": "PLC3"
+        },
+        {
+          "id": "T3",
+          "owner_plc": "PLC4"
+        },
+        {
+          "id": "T4",
+          "owner_plc": "PLC6"
+        }
+      ],
+      "fsms": [
+        {
+          "actuator": "V2",
+          "states": 2,
+          "transitions": 2
+        },
+        {
+          "actuator": "PU4",
+          "states": 2,
+          "transitions": 2
+        },
+        {
+          "actuator": "PU5",
+          "states": 2,
+          "transitions": 2
+        },
+        {
+          "actuator": "PU6",
+          "states": 2,
+          "transitions": 2
+        },
+        {
+          "actuator": "PU7",
+          "states": 2,
+          "transitions": 2
+        }
+      ]
+    },
+    {
+      "name": "PLC4",
+      "file": "ctown_plc4.st",
+      "actuators": [],
+      "sensors_referenced": [],
+      "fsms": []
+    },
+    {
+      "name": "PLC5",
+      "file": "ctown_plc5.st",
+      "actuators": [
+        "PU8",
+        "PU10",
+        "PU11"
+      ],
+      "sensors_referenced": [
+        {
+          "id": "T5",
+          "owner_plc": "PLC7"
+        },
+        {
+          "id": "T7",
+          "owner_plc": "PLC9"
+        }
+      ],
+      "fsms": [
+        {
+          "actuator": "PU8",
+          "states": 2,
+          "transitions": 2
+        },
+        {
+          "actuator": "PU10",
+          "states": 2,
+          "transitions": 2
+        },
+        {
+          "actuator": "PU11",
+          "states": 2,
+          "transitions": 2
+        }
+      ]
+    },
+    {
+      "name": "PLC6",
+      "file": "ctown_plc6.st",
+      "actuators": [],
+      "sensors_referenced": [],
+      "fsms": []
+    },
+    {
+      "name": "PLC7",
+      "file": "ctown_plc7.st",
+      "actuators": [],
+      "sensors_referenced": [],
+      "fsms": []
+    },
+    {
+      "name": "PLC8",
+      "file": "ctown_plc8.st",
+      "actuators": [],
+      "sensors_referenced": [],
+      "fsms": []
+    },
+    {
+      "name": "PLC9",
+      "file": "ctown_plc9.st",
+      "actuators": [],
+      "sensors_referenced": [],
+      "fsms": []
+    }
+  ]
+}

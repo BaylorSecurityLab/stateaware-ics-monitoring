@@ -1,0 +1,55 @@
+{
+  "topology": "ltown",
+  "inp": "ltown.inp",
+  "plcs_yaml": "ltown_plcs.yaml",
+  "generated_at": "2026-05-17T00:55:23+00:00",
+  "plcs": [
+    {
+      "name": "PLC1",
+      "file": "ltown_plc1.st",
+      "actuators": [
+        "PUMP_1"
+      ],
+      "sensors_referenced": [
+        {
+          "id": "T1",
+          "owner_plc": "PLC1"
+        }
+      ],
+      "fsms": [
+        {
+          "actuator": "PUMP_1",
+          "states": 2,
+          "transitions": 2
+        }
+      ]
+    },
+    {
+      "name": "PLC2",
+      "file": "ltown_plc2.st",
+      "actuators": [
+        "PRV-1"
+      ],
+      "sensors_referenced": [],
+      "fsms": []
+    },
+    {
+      "name": "PLC3",
+      "file": "ltown_plc3.st",
+      "actuators": [
+        "PRV-2"
+      ],
+      "sensors_referenced": [],
+      "fsms": []
+    },
+    {
+      "name": "PLC4",
+      "file": "ltown_plc4.st",
+      "actuators": [
+        "PRV-3"
+      ],
+      "sensors_referenced": [],
+      "fsms": []
+    }
+  ]
+}
