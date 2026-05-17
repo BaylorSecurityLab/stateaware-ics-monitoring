@@ -49,3 +49,38 @@ def test_parse_controls():
     assert c1.target_state == "CLOSED"
     assert c1.comparator == "ABOVE"
     assert c1.threshold == 5.5
+
+
+def test_unsupported_control_at_time(tmp_path):
+    from st_gen.model import UnsupportedControlError
+    inp = tmp_path / "bad.inp"
+    inp.write_text(
+        "[CONTROLS]\nLINK PUMP1 OPEN AT TIME 5\n[END]\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(UnsupportedControlError) as exc:
+        parse_inp(inp)
+    assert "LINK PUMP1 OPEN AT TIME 5" in str(exc.value)
+    assert "line 2" in str(exc.value)
+
+
+def test_unsupported_rules_raises(tmp_path):
+    from st_gen.model import UnsupportedRulesError
+    inp = tmp_path / "rules.inp"
+    inp.write_text(
+        "[RULES]\nRULE bad\nIF NODE T1 ABOVE 5\nTHEN LINK P1 STATUS = CLOSED\n[END]\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(UnsupportedRulesError) as exc:
+        parse_inp(inp)
+    assert "[RULES]" in str(exc.value)
+
+
+def test_empty_rules_section_ok(tmp_path):
+    inp = tmp_path / "ok.inp"
+    inp.write_text(
+        "[CONTROLS]\nLINK PUMP1 OPEN IF NODE T1 BELOW 2.0\n[RULES]\n\n; comment\n[END]\n",
+        encoding="utf-8",
+    )
+    net = parse_inp(inp)
+    assert len(net.controls) == 1
