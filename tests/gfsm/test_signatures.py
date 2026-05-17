@@ -63,3 +63,30 @@ def test_not_or_is_and_of_negations():
 def test_double_negation():
     e = Not(Not(Atomic(Condition("A", "=", "1"))))
     assert e.to_dnf() == [[Condition("A", "=", "1")]]
+
+
+def test_distribute_and_over_or():
+    # (A=1 OR B=2) AND (C=3 OR D=4)
+    e = And(
+        Or(Atomic(Condition("A", "=", "1")), Atomic(Condition("B", "=", "2"))),
+        Or(Atomic(Condition("C", "=", "3")), Atomic(Condition("D", "=", "4"))),
+    )
+    assert e.to_dnf() == [
+        [Condition("A", "=", "1"), Condition("C", "=", "3")],
+        [Condition("A", "=", "1"), Condition("D", "=", "4")],
+        [Condition("B", "=", "2"), Condition("C", "=", "3")],
+        [Condition("B", "=", "2"), Condition("D", "=", "4")],
+    ]
+
+
+def test_or_concatenates():
+    e = Or(Atomic(Condition("A", "=", "1")), Atomic(Condition("B", "=", "2")))
+    assert e.to_dnf() == [
+        [Condition("A", "=", "1")],
+        [Condition("B", "=", "2")],
+    ]
+
+
+def test_plain_and_single_conjunction():
+    e = And(Atomic(Condition("A", "=", "1")), Atomic(Condition("B", "=", "2")))
+    assert e.to_dnf() == [[Condition("A", "=", "1"), Condition("B", "=", "2")]]
