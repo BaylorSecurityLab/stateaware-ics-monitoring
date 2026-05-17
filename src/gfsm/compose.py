@@ -42,3 +42,28 @@ def _component_initial(fb: FunctionBlock) -> str:
     if fb.states:
         return next(iter(fb.states.keys()))
     raise GfsmError(f"function block '{fb.name}' has no states")
+
+
+def _encode(comps: list[Component], local_ids: tuple[str, ...]) -> str:
+    return "|".join(f"{c.plc}:{sid}" for c, sid in zip(comps, local_ids))
+
+
+def _component_choices(
+    fb: FunctionBlock, current: str
+) -> list[tuple[str, str | None, list[list[Condition]]]]:
+    """Viable outgoing transitions from `current`, else a single stutter.
+
+    Returns list of (target_state, transition_id|None, guard_dnf).
+    Stutter is encoded as (current, None, [[]]) — guard TRUE, no move.
+    """
+    viable: list[tuple[str, str | None, list[list[Condition]]]] = []
+    for tr in fb.transitions:
+        if tr.from_state != current:
+            continue
+        dnf = parse_transition_condition(tr.condition)
+        if is_syntactically_unsat(dnf):
+            continue
+        viable.append((tr.to_state, tr.id, dnf))
+    if not viable:
+        return [(current, None, [[]])]
+    return viable
