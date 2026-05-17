@@ -84,6 +84,13 @@ def _conjoin_dnf(dnfs: list[list[list[Condition]]]) -> list[list[Condition]]:
 
 
 def _global_guard_str(dnf: list[list[Condition]]) -> str:
+    """Serialize a DNF guard to a canonical string.
+
+    Each conjunction's conditions are sorted by (variable, operator, value)
+    and joined with " AND " (an empty conjunction = "TRUE"). Disjuncts are
+    deduped preserving first-seen order and joined with " OR ". A guard that
+    is purely TRUE returns "TRUE".
+    """
     terms: list[str] = []
     for conj in dnf:
         if not conj:
@@ -93,10 +100,7 @@ def _global_guard_str(dnf: list[list[Condition]]) -> str:
             conj, key=lambda c: (c.variable, c.operator, c.value)
         )
         terms.append(" AND ".join(c.to_string() for c in ordered))
-    uniq: list[str] = []
-    for t in terms:
-        if t not in uniq:
-            uniq.append(t)
+    uniq = list(dict.fromkeys(terms))
     if uniq == ["TRUE"]:
         return "TRUE"
     return " OR ".join(uniq)

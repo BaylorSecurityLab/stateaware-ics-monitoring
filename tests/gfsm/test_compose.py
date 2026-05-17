@@ -93,6 +93,18 @@ def test_conjoin_empty_is_true():
     assert _conjoin_dnf([[[]]]) == [[]]
 
 
+def test_conjoin_three_dnfs():
+    d1 = [[Condition("A", "=", "1")]]
+    d2 = [[Condition("B", "=", "2")]]
+    d3 = [[Condition("C", "=", "3")], [Condition("C", "=", "4")]]
+    assert _conjoin_dnf([d1, d2, d3]) == [
+        [Condition("A", "=", "1"), Condition("B", "=", "2"),
+         Condition("C", "=", "3")],
+        [Condition("A", "=", "1"), Condition("B", "=", "2"),
+         Condition("C", "=", "4")],
+    ]
+
+
 def test_global_guard_str_canonical_sorted():
     dnf = [[Condition("B", "=", "2"), Condition("A", "=", "1")]]
     assert _global_guard_str(dnf) == "A = 1 AND B = 2"
