@@ -224,3 +224,35 @@ class _Parser:
 
 def parse_expr(tokens: list[tuple[str, str | None]]) -> BooleanExpr | None:
     return _Parser(tokens).parse()
+
+
+def _parse_simple_condition(s: str) -> list[list[Condition]]:
+    conds: list[Condition] = []
+    for part in s.split(" AND "):
+        c = parse_atomic_condition_str(part.strip())
+        if c is not None:
+            conds.append(c)
+    return [conds]
+
+
+def parse_transition_condition(condition_str: str) -> list[list[Condition]]:
+    if condition_str == "" or condition_str == "No Check":
+        return [[]]
+    tokens = tokenize(condition_str)
+    if not tokens:
+        return [[]]
+    expr = parse_expr(tokens)
+    if expr is None:
+        return _parse_simple_condition(condition_str)
+    dnf = expr.to_dnf()
+    result: list[list[Condition]] = []
+    for conj in dnf:
+        seen: set[tuple[str, str, str]] = set()
+        unique: list[Condition] = []
+        for c in conj:
+            key = (c.variable, c.operator, c.value)
+            if key not in seen:
+                seen.add(key)
+                unique.append(c)
+        result.append(unique)
+    return result

@@ -127,3 +127,27 @@ def test_parse_paren_precedence():
         [Condition("A", "=", "1"), Condition("C", "=", "3")],
         [Condition("B", "=", "2"), Condition("C", "=", "3")],
     ]
+
+
+def test_no_check_is_empty_conjunction():
+    from gfsm.signatures import parse_transition_condition
+    assert parse_transition_condition("No Check") == [[]]
+    assert parse_transition_condition("") == [[]]
+
+
+def test_simple_and():
+    from gfsm.signatures import parse_transition_condition
+    dnf = parse_transition_condition("A = 1 AND B = 2")
+    assert len(dnf) == 1 and len(dnf[0]) == 2
+
+
+def test_simple_or():
+    from gfsm.signatures import parse_transition_condition
+    dnf = parse_transition_condition("A = 1 OR B = 2")
+    assert len(dnf) == 2
+
+
+def test_dedupe_within_conjunction():
+    from gfsm.signatures import parse_transition_condition
+    dnf = parse_transition_condition("A = 1 AND A = 1")
+    assert dnf == [[Condition("A", "=", "1")]]
