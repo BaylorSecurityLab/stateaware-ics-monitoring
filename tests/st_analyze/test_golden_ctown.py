@@ -47,7 +47,10 @@ def test_analysis_is_deterministic(tmp_path: Path):
     analyze_topology(generated_dir=GEN, topology=TOPOLOGY, out_dir=a)
     analyze_topology(generated_dir=GEN, topology=TOPOLOGY, out_dir=b)
 
-    for name in sorted(p.name for p in a.iterdir()):
-        if name.endswith("_analysis_manifest.json"):
-            continue  # contains generated_at timestamp
+    non_manifest = sorted(
+        p.name for p in a.iterdir()
+        if not p.name.endswith("_analysis_manifest.json")
+    )
+    assert non_manifest, "analyze_topology wrote no artifact files"
+    for name in non_manifest:
         assert (a / name).read_text() == (b / name).read_text(), name
