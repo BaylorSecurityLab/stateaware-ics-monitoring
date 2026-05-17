@@ -256,3 +256,144 @@ def parse_transition_condition(condition_str: str) -> list[list[Condition]]:
                 unique.append(c)
         result.append(unique)
     return result
+
+
+from .model import FunctionBlock  # noqa: E402  (kept local to avoid cycle risk)
+
+
+@dataclass
+class PathSignature:
+    conditions: list[Condition]
+    path_id: int
+
+    def format_conditions(self) -> str:
+        if not self.conditions:
+            return "[initial]"
+        return " AND ".join(c.to_string() for c in self.conditions)
+
+
+@dataclass
+class StateSignature:
+    state_id: str
+    path_signatures: list[PathSignature]
+    paths_count: int
+
+    def format_conditions(self) -> str:
+        if not self.path_signatures:
+            return "[initial]"
+        if len(self.path_signatures) == 1:
+            return self.path_signatures[0].format_conditions()
+        return " OR ".join(
+            f"({ps.format_conditions()})" for ps in self.path_signatures
+        )
+
+
+@dataclass
+class StateSignatureTable:
+    function_block_name: str
+    case_variable: str
+    signatures: dict[str, StateSignature]
+
+
+def _find_initial_states(fb: FunctionBlock) -> list[str]:
+    return [s.id for s in fb.states.values() if not s.transitions_in]
+
+
+def _fallback_initial(fb: FunctionBlock) -> list[str]:
+    if "100" in fb.states:
+        return ["100"]
+    if "10" in fb.states:
+        return ["10"]
+    if fb.states:
+        return [next(iter(fb.states.keys()))]
+    return []
+
+
+def _dfs(fb, current, visited, current_path, paths_to_states):
+    paths_to_states.setdefault(current, []).append(list(current_path))
+    visited.add(current)
+    for idx, tr in enumerate(fb.transitions):
+        if tr.from_state == current and tr.to_state not in visited:
+            current_path.append((tr.to_state, idx))
+            _dfs(fb, tr.to_state, visited, current_path, paths_to_states)
+            current_path.pop()
+    visited.discard(current)
+
+
+def _find_all_paths(fb: FunctionBlock) -> dict[str, list[list[tuple[str, int | None]]]]:
+    paths: dict[str, list[list[tuple[str, int | None]]]] = {}
+    initial = _find_initial_states(fb) or _fallback_initial(fb)
+    for init in initial:
+        _dfs(fb, init, set(), [(init, None)], paths)
+    return paths
+
+
+def _cross_product_dnf(dnfs: list[list[list[Condition]]]) -> list[list[Condition]]:
+    if not dnfs:
+        return [[]]
+    result = [list(c) for c in dnfs[0]]
+    for dnf in dnfs[1:]:
+        new_result: list[list[Condition]] = []
+        for lt in result:
+            for rt in dnf:
+                new_result.append([*lt, *rt])
+        result = new_result
+    return result
+
+
+def _extract_conditions_from_path(fb, path) -> list[list[Condition]]:
+    transition_dnfs: list[list[list[Condition]]] = []
+    for _state_id, tidx in path:
+        if tidx is not None and 0 <= tidx < len(fb.transitions):
+            transition_dnfs.append(
+                parse_transition_condition(fb.transitions[tidx].condition)
+            )
+    return _cross_product_dnf(transition_dnfs)
+
+
+def _remove_redundancy(conditions: list[Condition]) -> list[Condition]:
+    seen: set[tuple[str, str, str]] = set()
+    unique: list[Condition] = []
+    for c in conditions:
+        key = (c.variable, c.operator, c.value)
+        if key not in seen:
+            seen.add(key)
+            unique.append(c)
+    unique.sort(key=lambda c: (c.variable, c.operator, c.value))
+    return unique
+
+
+def _merge_equivalent(sigs: list[PathSignature]) -> list[PathSignature]:
+    if len(sigs) <= 1:
+        return sigs
+    grouped: dict[str, PathSignature] = {}
+    for sig in sigs:
+        key = sig.format_conditions()
+        if key not in grouped:
+            grouped[key] = sig
+    return list(grouped.values())
+
+
+def _build_signature_for_state(fb, state_id, paths) -> StateSignature:
+    path_signatures: list[PathSignature] = []
+    sig_id = 0
+    for path in paths:
+        for conditions in _extract_conditions_from_path(fb, path):
+            path_signatures.append(
+                PathSignature(_remove_redundancy(conditions), sig_id)
+            )
+            sig_id += 1
+    return StateSignature(
+        state_id=state_id,
+        path_signatures=_merge_equivalent(path_signatures),
+        paths_count=len(paths),
+    )
+
+
+def generate_signatures(fb: FunctionBlock) -> StateSignatureTable:
+    table = StateSignatureTable(fb.name, fb.case_variable, {})
+    for state_id, paths in _find_all_paths(fb).items():
+        table.signatures[state_id] = _build_signature_for_state(
+            fb, state_id, paths
+        )
+    return table

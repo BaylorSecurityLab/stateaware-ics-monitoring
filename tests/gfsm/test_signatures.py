@@ -151,3 +151,53 @@ def test_dedupe_within_conjunction():
     from gfsm.signatures import parse_transition_condition
     dnf = parse_transition_condition("A = 1 AND A = 1")
     assert dnf == [[Condition("A", "=", "1")]]
+
+
+from gfsm.model import FunctionBlock, State, Transition
+from gfsm.signatures import (
+    PathSignature,
+    StateSignature,
+    StateSignatureTable,
+    generate_signatures,
+)
+
+
+def _multi_path_fsm() -> FunctionBlock:
+    fb = FunctionBlock.new("MultiPathFB", "state")
+    for s in ("10", "20", "30"):
+        fb.add_state(State.new(s))
+    fb.add_transition(Transition.new("10", "20", "sensor = low"))
+    fb.add_transition(Transition.new("10", "20", "button = pressed"))
+    fb.add_transition(Transition.new("20", "30", "timer > 100"))
+    return fb
+
+
+def test_multiple_path_signatures():
+    table = generate_signatures(_multi_path_fsm())
+    assert len(table.signatures["20"].path_signatures) == 2
+
+
+def test_initial_state_signature_is_marker():
+    table = generate_signatures(_multi_path_fsm())
+    assert table.signatures["10"].format_conditions() == "[initial]"
+
+
+def test_path_signature_sorted_and_deduped():
+    fb = FunctionBlock.new("FB", "state")
+    for s in ("10", "20"):
+        fb.add_state(State.new(s))
+    fb.add_transition(Transition.new("10", "20", "B = 2 AND A = 1"))
+    table = generate_signatures(fb)
+    sig = table.signatures["20"].path_signatures[0]
+    assert [c.to_string() for c in sig.conditions] == ["A = 1", "B = 2"]
+
+
+def test_or_condition_two_signatures():
+    fb = FunctionBlock.new("OrFB", "state")
+    for s in ("10", "20"):
+        fb.add_state(State.new(s))
+    fb.add_transition(
+        Transition.new("10", "20", "sensor = low OR button = pressed")
+    )
+    table = generate_signatures(fb)
+    assert len(table.signatures["20"].path_signatures) == 2
