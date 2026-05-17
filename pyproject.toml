@@ -14,6 +14,7 @@ dependencies = [
     "rtamt",
     "py7zr>=0.21",
     "zarr>=2.17",
+    "niaarm>=0.3.10",
 ]
 
 [project.optional-dependencies]
@@ -28,6 +29,7 @@ gfsm-build = "gfsm.cli:main"
 stl-monitor = "stl.cli:main"
 ics-monitor = "monitor.cli:main"
 dataio-ingest = "dataio.ingest:main"
+invariants-mine = "invariants.cli:main"
 
 # rtamt has no usable PyPI release on Python >=3.13 (0.3.5 hard-pins the
 # broken antlr4 4.7). The git HEAD ships 0.4.10 whose ANTLR parser matches
@@ -42,4 +44,4 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/st_gen", "src/iec_st_compiler", "src/st_analyze", "src/gfsm", "src/dataio", "src/stl", "src/monitor"]
+packages = ["src/st_gen", "src/iec_st_compiler", "src/st_analyze", "src/gfsm", "src/dataio", "src/stl", "src/monitor", "src/invariants"]
