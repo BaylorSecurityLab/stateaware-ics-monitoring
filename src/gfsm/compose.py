@@ -113,6 +113,21 @@ def compose_global(
     max_states: int = DEFAULT_MAX_STATES,
     source_file: str = "<composed>",
 ) -> GlobalFSM:
+    """Build the synchronous+stutter product automaton (spec §6, semantics B).
+
+    Composes the given per-PLC ``LocalFSM`` components into a single
+    ``GlobalFSM`` via BFS over reachable global states, allowing joint moves
+    and single-mover interleavings (a component with viable moves may also
+    stutter). The result is reachable-only and deterministic by construction.
+
+    :param fsms: mapping of PLC name to its ``LocalFSM``.
+    :param max_states: keyword-only cap on the reachable-state set size.
+    :param source_file: metadata provenance string recorded on the result.
+    :returns: a ``GlobalFSM`` containing only reachable states, deterministic.
+    :raises GfsmError: if the input is empty ("no function blocks to compose")
+        or the reachable state set would exceed ``max_states`` (state
+        explosion).
+    """
     comps = _ordered_components(fsms)
     if not comps:
         raise GfsmError("no function blocks to compose")
@@ -135,10 +150,11 @@ def compose_global(
             cc = _component_choices(c.fb, cur_local[i])
             # Semantics B (spec §6, user-confirmed): a component with viable
             # moves may ALSO stutter, so single-mover interleavings exist
-            # alongside joint moves. `_component_choices` returns the
-            # stutter-only sentinel `[(cur, None, [[]])]` when nothing is
-            # viable; only append the stutter option when there is at least
-            # one real move (avoid a duplicate all-stutter entry).
+            # alongside joint moves. When no real move exists,
+            # _component_choices already returns the stutter sentinel as the
+            # sole choice; appending it again would double-count and yield a
+            # spurious all-stutter combo, so only augment when a real move
+            # (tid is not None) is present.
             if any(tid is not None for _t, tid, _d in cc):
                 cc = cc + [(cur_local[i], None, [[]])]
             per_comp_choices.append(cc)
