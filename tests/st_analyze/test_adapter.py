@@ -31,6 +31,7 @@ def test_analyze_source_produces_pdg_and_invariant_containers():
     assert isinstance(r.pdg_structured, dict)
     assert "digraph" in r.pdg_dot.lower() or r.pdg_dot == ""
     assert r.ok is True
+    assert r.programs  # PDG state keys present (e.g. ["0"])
 
 
 def test_analyze_empty_program_is_ok_not_crash():
@@ -46,3 +47,14 @@ def test_invariants_are_json_serializable_dicts():
     json.dumps(r.invariants)  # raises if not serializable
     for inv in r.invariants:
         assert "type" in inv and "id" in inv
+
+
+def test_malformed_source_sets_not_ok_without_raising():
+    # Garbage that the analyzer grammar cannot parse must not escape
+    # as an unhandled exception; analyze_source must return ok=False.
+    r = analyze_source("@@@ this is definitely not structured text @@@")
+    assert r.ok is False
+    assert r.errors
+    assert r.ast_xml == ""
+    assert r.invariants == []
+    assert r.pdg_structured == {}

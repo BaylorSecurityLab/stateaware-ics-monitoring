@@ -28,8 +28,25 @@ def analyze_source(source: str) -> AnalyzeResult:
     captured = io.StringIO()
 
     with redirect_stdout(captured), redirect_stderr(captured):
-        ast = core.compile_to_ast(source, _COMMENT_PATTERN)
-        ast_xml = core.compile_to_xml(source, _COMMENT_PATTERN, pretty_print=True)
+        # compile_to_ast and compile_to_xml each parse from scratch (a
+        # deliberate, spec-approved double parse: public API only, .st
+        # files are small). A parse failure here must not escape.
+        try:
+            ast = core.compile_to_ast(source, _COMMENT_PATTERN)
+            ast_xml = core.compile_to_xml(
+                source, _COMMENT_PATTERN, pretty_print=True
+            )
+        except Exception as exc:  # noqa: BLE001 - analyzer raises broadly
+            return AnalyzeResult(
+                ast_xml="",
+                invariants=[],
+                pdg_dot="",
+                pdg_structured={},
+                programs=[],
+                state_variable=None,
+                ok=False,
+                errors=[f"parse failed: {exc!r}"],
+            )
 
         pdgs = None
         state_variable = None
