@@ -2,10 +2,13 @@ from gfsm.compose import (
     Component,
     _component_choices,
     _component_initial,
+    _conjoin_dnf,
     _encode,
+    _global_guard_str,
     _ordered_components,
 )
 from gfsm.model import FunctionBlock, LocalFSM, Metadata, State, Transition
+from gfsm.signatures import Condition
 
 
 def _fb(name, states, edges, case="S") -> FunctionBlock:
@@ -73,3 +76,27 @@ def test_component_choices_stutter_when_no_viable():
     fb = _fb("A", ["10", "20"], [("10", "20", "x > 5 AND x < 3")])
     choices = _component_choices(fb, "10")
     assert choices == [("10", None, [[]])]  # stutter only
+
+
+def test_conjoin_cross_product():
+    d1 = [[Condition("A", "=", "1")]]
+    d2 = [[Condition("B", "=", "2")], [Condition("B", "=", "3")]]
+    out = _conjoin_dnf([d1, d2])
+    assert out == [
+        [Condition("A", "=", "1"), Condition("B", "=", "2")],
+        [Condition("A", "=", "1"), Condition("B", "=", "3")],
+    ]
+
+
+def test_conjoin_empty_is_true():
+    assert _conjoin_dnf([]) == [[]]
+    assert _conjoin_dnf([[[]]]) == [[]]
+
+
+def test_global_guard_str_canonical_sorted():
+    dnf = [[Condition("B", "=", "2"), Condition("A", "=", "1")]]
+    assert _global_guard_str(dnf) == "A = 1 AND B = 2"
+
+
+def test_global_guard_str_true_when_empty():
+    assert _global_guard_str([[]]) == "TRUE"

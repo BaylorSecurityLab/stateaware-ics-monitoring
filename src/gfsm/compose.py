@@ -67,3 +67,36 @@ def _component_choices(
     if not viable:
         return [(current, None, [[]])]
     return viable
+
+
+def _conjoin_dnf(dnfs: list[list[list[Condition]]]) -> list[list[Condition]]:
+    """Cross-product conjunction of several DNFs. [] -> [[ ]] (TRUE)."""
+    result: list[list[Condition]] = [[]]
+    for dnf in dnfs:
+        if not dnf:
+            dnf = [[]]
+        new_result: list[list[Condition]] = []
+        for lt in result:
+            for rt in dnf:
+                new_result.append([*lt, *rt])
+        result = new_result
+    return result if result else [[]]
+
+
+def _global_guard_str(dnf: list[list[Condition]]) -> str:
+    terms: list[str] = []
+    for conj in dnf:
+        if not conj:
+            terms.append("TRUE")
+            continue
+        ordered = sorted(
+            conj, key=lambda c: (c.variable, c.operator, c.value)
+        )
+        terms.append(" AND ".join(c.to_string() for c in ordered))
+    uniq: list[str] = []
+    for t in terms:
+        if t not in uniq:
+            uniq.append(t)
+    if uniq == ["TRUE"]:
+        return "TRUE"
+    return " OR ".join(uniq)
