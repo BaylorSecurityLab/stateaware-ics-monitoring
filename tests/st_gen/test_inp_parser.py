@@ -35,3 +35,17 @@ def test_parse_valves():
     assert v.id == "V1"
     assert v.vtype == "PRV"
     assert v.setting == 40.0
+
+
+def test_parse_controls():
+    net = parse_inp(FIXTURE)
+    assert len(net.controls) == 2
+    c0, c1 = net.controls
+    assert c0.link_id == "PUMP1"
+    assert c0.target_state == "OPEN"
+    assert c0.sensor_node == "T1"
+    assert c0.comparator == "BELOW"
+    assert c0.threshold == 2.0
+    assert c1.target_state == "CLOSED"
+    assert c1.comparator == "ABOVE"
+    assert c1.threshold == 5.5

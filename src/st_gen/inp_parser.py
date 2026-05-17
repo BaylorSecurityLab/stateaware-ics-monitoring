@@ -64,7 +64,7 @@ def parse_inp(path: str | Path) -> Network:
         elif section == "VALVES":
             valves.append(_parse_valve(data, lineno))
         elif section == "CONTROLS":
-            continue  # parsed in Task 3
+            controls.append(_parse_control(data, lineno))
         elif section == "RULES":
             raise UnsupportedRulesError(
                 f"[RULES] section is non-empty at line {lineno}: {data!r}. "
@@ -109,7 +109,24 @@ def _parse_valve(data: str, lineno: int) -> Valve:
     )
 
 
+_CONTROL_RE = re.compile(
+    r"^\s*LINK\s+(\S+)\s+(OPEN|CLOSED)\s+IF\s+NODE\s+(\S+)\s+(BELOW|ABOVE)\s+(-?\d+(?:\.\d+)?)\s*$",
+    re.IGNORECASE,
+)
+
+
 def _parse_control(data: str, lineno: int) -> Control:
-    # Implemented in Task 3. Placeholder raises so tests in this task pass without
-    # accidentally hiding parse errors in the [CONTROLS] section.
-    raise NotImplementedError("Control parsing arrives in Task 3")
+    m = _CONTROL_RE.match(data)
+    if not m:
+        raise UnsupportedControlError(
+            f"[CONTROLS] line {lineno} is not a simple LINK ... IF NODE ... "
+            f"BELOW/ABOVE form: {data!r}"
+        )
+    link_id, target_state, sensor, comparator, threshold = m.groups()
+    return Control(
+        link_id=link_id,
+        target_state=target_state.upper(),
+        sensor_node=sensor,
+        comparator=comparator.upper(),
+        threshold=float(threshold),
+    )
