@@ -40,3 +40,22 @@ def test_label_frame_raises_on_missing_column():
     fb_to_col = {("PLC1", "P78"): "p78", ("PLC1", "P79"): "p79"}
     with pytest.raises(InvariantsError, match="missing column"):
         label_frame(df, SAMPLE_COMPONENTS, fb_to_col)
+
+
+def test_label_frame_raises_invariantserror_on_nan():
+    df = pd.DataFrame({"p78": [0.0, float("nan")], "p79": [1.0, 1.0]})
+    fb_to_col = {("PLC1", "P78"): "p78", ("PLC1", "P79"): "p79"}
+    with pytest.raises(InvariantsError, match="non-finite|NaN"):
+        label_frame(df, SAMPLE_COMPONENTS, fb_to_col)
+
+
+def test_load_components_raises_on_malformed_key():
+    bad = {"states": {"PLC1": ["0"]}}  # segment has no ':'
+    with pytest.raises(InvariantsError, match="malformed"):
+        load_gfsm_components(bad)
+
+
+def test_load_components_pins_positional_placeholders():
+    sample = {"states": {"PLC1:0|PLC1:1": ["0", "1"]}}
+    comps = load_gfsm_components(sample)
+    assert [c[1] for c in comps] == ["#0", "#1"]

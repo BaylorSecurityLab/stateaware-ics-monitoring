@@ -41,6 +41,10 @@ def load_gfsm_components(gfsm_dict: dict[str, Any]) -> list[tuple[str, str]]:
     parts = sample_key.split("|")
     components: list[tuple[str, str]] = []
     for i, part in enumerate(parts):
+        if ":" not in part:
+            raise InvariantsError(
+                f"malformed gfsm state key segment {part!r} in {sample_key!r}"
+            )
         plc, _sid = part.split(":", 1)
         components.append((plc, f"#{i}"))
     return components
@@ -59,7 +63,14 @@ def label_frame(
             f"(columns={list(df.columns)[:8]})"
         )
     cols = [fb_to_col[c] for c in components]
-    sub = df[cols].astype(int).astype(str)
+    selected = df[cols]
+    import numpy as np
+    if not np.isfinite(selected.to_numpy(dtype="float64")).all():
+        raise InvariantsError(
+            f"non-finite (NaN/inf) value in state columns {cols}; "
+            f"cannot derive composite state"
+        )
+    sub = selected.astype(int).astype(str)
     return sub.apply(
         lambda row: "|".join(
             f"{plc}:{sid}" for (plc, _fb), sid in zip(components, row)
