@@ -47,8 +47,9 @@ def test_clean_within_bounds_no_flags(tmp_path: Path):
     inv_dir = _phi(tmp_path, gfsm_sha=sha)
     gd = _gfsm_dir(tmp_path, sha_text="{}")
     det = InvariantsAnomalyDetector(
-        invariants_dir=inv_dir, gfsm_dir=gd, topology="synth",
-        components=[("PLC1", "#0")], fb_to_col={("PLC1", "#0"): "p1"},
+        invariants_dir=inv_dir, gfsm_dir=gd, data_root=tmp_path,
+        topology="synth", components=[("PLC1", "#0")],
+        fb_to_col={("PLC1", "#0"): "p1"},
     ).fit([])
     frame = pd.DataFrame({"p1": [0, 0, 0], "t1": [1.2, 1.3, 1.4]})
     out = det.predict(frame)
@@ -60,8 +61,9 @@ def test_out_of_bounds_flagged(tmp_path: Path):
     inv_dir = _phi(tmp_path, gfsm_sha=sha)
     gd = _gfsm_dir(tmp_path, sha_text="{}")
     det = InvariantsAnomalyDetector(
-        invariants_dir=inv_dir, gfsm_dir=gd, topology="synth",
-        components=[("PLC1", "#0")], fb_to_col={("PLC1", "#0"): "p1"},
+        invariants_dir=inv_dir, gfsm_dir=gd, data_root=tmp_path,
+        topology="synth", components=[("PLC1", "#0")],
+        fb_to_col={("PLC1", "#0"): "p1"},
     ).fit([])
     frame = pd.DataFrame({"p1": [0, 0], "t1": [1.2, 2.0]})  # row1 out of [1,1.5]
     out = det.predict(frame)
@@ -73,8 +75,9 @@ def test_unknown_state_flagged(tmp_path: Path):
     inv_dir = _phi(tmp_path, gfsm_sha=sha)
     gd = _gfsm_dir(tmp_path, sha_text="{}")
     det = InvariantsAnomalyDetector(
-        invariants_dir=inv_dir, gfsm_dir=gd, topology="synth",
-        components=[("PLC1", "#0")], fb_to_col={("PLC1", "#0"): "p1"},
+        invariants_dir=inv_dir, gfsm_dir=gd, data_root=tmp_path,
+        topology="synth", components=[("PLC1", "#0")],
+        fb_to_col={("PLC1", "#0"): "p1"},
     ).fit([])
     out = det.predict(pd.DataFrame({"p1": [2], "t1": [1.2]}))  # PLC1:2 ∉ Φ
     assert out.flags[0] == 1
@@ -83,8 +86,9 @@ def test_unknown_state_flagged(tmp_path: Path):
 def test_missing_phi_raises(tmp_path: Path):
     gd = _gfsm_dir(tmp_path, sha_text="{}")
     det = InvariantsAnomalyDetector(
-        invariants_dir=tmp_path / "nope", gfsm_dir=gd, topology="synth",
-        components=[("PLC1", "#0")], fb_to_col={("PLC1", "#0"): "p1"},
+        invariants_dir=tmp_path / "nope", gfsm_dir=gd, data_root=tmp_path,
+        topology="synth", components=[("PLC1", "#0")],
+        fb_to_col={("PLC1", "#0"): "p1"},
     )
     with pytest.raises(MonitorError, match="phi json not found"):
         det.fit([])
@@ -96,8 +100,55 @@ def test_stale_phi_raises(tmp_path: Path):
     inv_dir = _phi(tmp_path, gfsm_sha="0" * 64)
     gd = _gfsm_dir(tmp_path, sha_text="DIFFERENT CONTENT")
     det = InvariantsAnomalyDetector(
-        invariants_dir=inv_dir, gfsm_dir=gd, topology="synth",
-        components=[("PLC1", "#0")], fb_to_col={("PLC1", "#0"): "p1"},
+        invariants_dir=inv_dir, gfsm_dir=gd, data_root=tmp_path,
+        topology="synth", components=[("PLC1", "#0")],
+        fb_to_col={("PLC1", "#0"): "p1"},
     )
     with pytest.raises(MonitorError, match="stale"):
+        det.fit([])
+
+
+def test_stale_dataset_manifest_raises(tmp_path: Path):
+    gsha = hashlib.sha256("{}".encode("utf-8")).hexdigest()
+    inv_dir = _phi(tmp_path, gfsm_sha=gsha)
+    gd = _gfsm_dir(tmp_path, sha_text="{}")
+    # Φ records dataset_manifest_sha256 = sha256("0"*64-placeholder) i.e.
+    # whatever _phi wrote ("0"*64). Create a REAL dataset manifest whose
+    # content hashes differently → stale.
+    ds = tmp_path / "synth" / "dataset"
+    ds.mkdir(parents=True)
+    (ds / "dataset_manifest.yaml").write_text("files: {}\n")
+    det = InvariantsAnomalyDetector(
+        invariants_dir=inv_dir, gfsm_dir=gd, data_root=tmp_path,
+        topology="synth", components=[("PLC1", "#0")],
+        fb_to_col={("PLC1", "#0"): "p1"},
+    )
+    with pytest.raises(MonitorError, match="dataset manifest sha mismatch"):
+        det.fit([])
+
+
+def test_malformed_phi_in_atom_raises(tmp_path: Path):
+    gsha = hashlib.sha256("{}".encode("utf-8")).hexdigest()
+    inv_dir = tmp_path / "invariants"
+    inv_dir.mkdir()
+    (inv_dir / "synth_phi.json").write_text(json.dumps({
+        "schema": "invariants/v1", "topology": "synth",
+        "gfsm_manifest": "synth_gfsm_manifest.json",
+        "gfsm_manifest_sha256": gsha,
+        "dataset_manifest": "dataset_manifest.yaml",
+        "dataset_manifest_sha256": "0" * 64,
+        "niaarm": {}, "generated_at": "",
+        "states": {"PLC1:0": {"observations": 9, "status": "ok", "rules": [
+            {"id": "r0",
+             "antecedent": [{"col": "t1", "op": "in", "val": 1.5}],
+             "consequent": [{"col": "t1", "op": "in", "val": [1.0, 1.5]}],
+             "support": 0.9, "confidence": 0.95, "lift": 1.0}]}},
+    }))
+    gd = _gfsm_dir(tmp_path, sha_text="{}")
+    det = InvariantsAnomalyDetector(
+        invariants_dir=inv_dir, gfsm_dir=gd, data_root=tmp_path,
+        topology="synth", components=[("PLC1", "#0")],
+        fb_to_col={("PLC1", "#0"): "p1"},
+    )
+    with pytest.raises(MonitorError, match="malformed"):
         det.fit([])

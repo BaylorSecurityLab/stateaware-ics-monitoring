@@ -63,12 +63,14 @@ class InvariantsAnomalyDetector:
         *,
         invariants_dir: Path,
         gfsm_dir: Path,
+        data_root: Path,
         topology: str,
         components: list[tuple[str, str]],
         fb_to_col: dict[tuple[str, str], str],
     ):
         self._dir = Path(invariants_dir)
         self._gfsm_dir = Path(gfsm_dir)
+        self._data_root = Path(data_root)
         self._topology = topology
         self._components = components
         self._fb_to_col = fb_to_col
@@ -92,10 +94,33 @@ class InvariantsAnomalyDetector:
                     "stale Φ artifact (gfsm manifest sha mismatch); "
                     "re-run invariants-mine"
                 )
+        recorded_ds = data.get("dataset_manifest_sha256")
+        dsman = (self._data_root / self._topology / "dataset"
+                 / "dataset_manifest.yaml")
+        if recorded_ds is not None and dsman.exists():
+            actual_ds = hashlib.sha256(
+                dsman.read_text().encode("utf-8")).hexdigest()
+            if recorded_ds != actual_ds:
+                raise MonitorError(
+                    "stale Φ artifact (dataset manifest sha mismatch); "
+                    "re-run invariants-mine"
+                )
         self._phi = {
             s: (e.get("rules") or [])
             for s, e in (data.get("states") or {}).items()
         }
+        for state_id, rules in self._phi.items():
+            for r in rules:
+                for atom in (r.get("antecedent", [])
+                             + r.get("consequent", [])):
+                    if atom.get("op") == "in":
+                        v = atom.get("val")
+                        if not (isinstance(v, list) and len(v) == 2):
+                            raise MonitorError(
+                                f"malformed Φ rule in state {state_id!r}: "
+                                f"'in' atom requires a 2-element val, "
+                                f"got {v!r}"
+                            )
         return self
 
     def predict(self, frame: pd.DataFrame) -> StepFlags:
