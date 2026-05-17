@@ -1,6 +1,7 @@
 from gfsm.signatures import Condition, parse_atomic_condition_str
 from gfsm.signatures import And, Atomic, Not, Or, negate_condition
 from gfsm.signatures import parse_expr, tokenize
+from gfsm.signatures import conjunction_is_unsat, is_syntactically_unsat
 
 
 def test_condition_to_string():
@@ -201,9 +202,6 @@ def test_or_condition_two_signatures():
     )
     table = generate_signatures(fb)
     assert len(table.signatures["20"].path_signatures) == 2
-
-
-from gfsm.signatures import conjunction_is_unsat, is_syntactically_unsat
 
 
 def test_equal_different_values_unsat():

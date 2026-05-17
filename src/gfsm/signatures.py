@@ -407,6 +407,17 @@ def _as_float(v: str) -> float | None:
 
 
 def conjunction_is_unsat(conj: list[Condition]) -> bool:
+    """Return True iff this single conjunction (one DNF term) is
+    syntactically unsatisfiable.
+
+    Detects contradictory constant comparisons on the *same* variable:
+    two ``=`` with different values, ``=`` and ``<>`` with the same
+    value, or an empty numeric interval (lo > hi, lo == hi with an open
+    bound, or an equality pin lying outside ``[lo, hi]``). This is a
+    purely syntactic check — no SMT solving is performed.
+    """
+    # Group every condition by the variable it constrains; contradictions
+    # can only arise between conditions on the same variable.
     by_var: dict[str, list[Condition]] = {}
     for c in conj:
         by_var.setdefault(c.variable, []).append(c)
@@ -414,56 +425,70 @@ def conjunction_is_unsat(conj: list[Condition]) -> bool:
     for _var, conds in by_var.items():
         eq_values: set[str] = set()
         neq_values: set[str] = set()
-        lo = float("-inf")
+        lo_bound = float("-inf")
         lo_closed = True
-        hi = float("inf")
+        hi_bound = float("inf")
         hi_closed = True
-        eq_pin: float | None = None
+        eq_pinned: float | None = None
 
         for c in conds:
             op, val = c.operator, c.value
             fv = _as_float(val)
             if op == "=":
+                # eq/neq cross-check: two distinct ``=`` values, or an
+                # ``=`` value already forbidden by a ``<>``, is a clash.
                 eq_values.add(val)
                 if len(eq_values) > 1:
                     return True
                 if val in neq_values:
                     return True
                 if fv is not None:
-                    if eq_pin is not None and eq_pin != fv:
+                    if eq_pinned is not None and eq_pinned != fv:
                         return True
-                    eq_pin = fv
+                    eq_pinned = fv
             elif op == "<>":
+                # Mirror of the above: ``<>`` a value that ``=`` requires.
                 neq_values.add(val)
                 if val in eq_values:
                     return True
             elif fv is not None:
+                # Tighten the running numeric interval [lo, hi]; only
+                # adopt a bound when it is strictly more restrictive
+                # (closed->open transition counts as tighter at equality).
                 if op == ">":
-                    if fv > lo or (fv == lo and lo_closed):
-                        lo, lo_closed = fv, False
+                    if fv > lo_bound or (fv == lo_bound and lo_closed):
+                        lo_bound, lo_closed = fv, False
                 elif op == ">=":
-                    if fv > lo:
-                        lo, lo_closed = fv, True
+                    if fv > lo_bound:
+                        lo_bound, lo_closed = fv, True
                 elif op == "<":
-                    if fv < hi or (fv == hi and hi_closed):
-                        hi, hi_closed = fv, False
+                    if fv < hi_bound or (fv == hi_bound and hi_closed):
+                        hi_bound, hi_closed = fv, False
                 elif op == "<=":
-                    if fv < hi:
-                        hi, hi_closed = fv, True
+                    if fv < hi_bound:
+                        hi_bound, hi_closed = fv, True
 
-        if lo > hi:
+        # Final emptiness checks: crossed bounds, a degenerate point
+        # interval with an open side, or an ``=`` pin outside [lo, hi].
+        if lo_bound > hi_bound:
             return True
-        if lo == hi and not (lo_closed and hi_closed):
+        if lo_bound == hi_bound and not (lo_closed and hi_closed):
             return True
-        if eq_pin is not None:
-            if eq_pin < lo or (eq_pin == lo and not lo_closed):
+        if eq_pinned is not None:
+            if eq_pinned < lo_bound or (eq_pinned == lo_bound and not lo_closed):
                 return True
-            if eq_pin > hi or (eq_pin == hi and not hi_closed):
+            if eq_pinned > hi_bound or (eq_pinned == hi_bound and not hi_closed):
                 return True
     return False
 
 
 def is_syntactically_unsat(dnf: list[list[Condition]]) -> bool:
+    """Return True iff the whole DNF is syntactically unsatisfiable.
+
+    A DNF is unsat iff *every* conjunction term is unsat. An empty DNF
+    ``[]`` is treated as unsat; ``[[]]`` (a single empty conjunction) is
+    satisfiable, representing TRUE.
+    """
     if not dnf:
         return True
     return all(conjunction_is_unsat(term) for term in dnf)
