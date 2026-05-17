@@ -70,3 +70,60 @@ def test_missing_gfsm_json_raises_monitor_error(tmp_path: Path):
     )
     with pytest.raises(MonitorError, match="gfsm json not found"):
         det.fit([])
+
+
+def test_illegal_known_to_known_transition_flagged(tmp_path: Path):
+    # Build a gfsm where the ONLY legal move is 0->1 (no 1->0). Then a
+    # trace 0 -> 1 -> 0 must flag row 2 (the illegal 1->0).
+    gfsm_dir = tmp_path / "gfsm"
+    gfsm_dir.mkdir()
+    (gfsm_dir / "oneway.gfsm.json").write_text(json.dumps({
+        "initial": "PLC1:0",
+        "states": {"PLC1:0": ["0"], "PLC1:1": ["1"]},
+        "transitions": [
+            {"id": "t0", "from_state": "PLC1:0", "to_state": "PLC1:1",
+             "condition": "", "raw_expression": ""},
+        ],
+        "metadata": {"source_file": "x", "extraction_date": "",
+                     "total_states": 2, "total_transitions": 1},
+        "max_states": 100,
+    }))
+    (gfsm_dir / "oneway_gfsm_manifest.json").write_text(json.dumps({"x": 1}))
+    det = GfsmAnomalyDetector(
+        gfsm_dir=gfsm_dir, topology="oneway",
+        fb_to_col={("PLC1", "#0"): "p1"},
+    ).fit([])
+    out = det.predict(pd.DataFrame({"p1": [0, 1, 0]}))
+    # row0: known, no pred -> 0; row1: 0->1 legal -> 0; row2: 1->0 NOT in
+    # allowed -> flagged.
+    assert out.flags.tolist() == [0, 0, 1]
+
+
+def test_row0_unknown_state_flagged(tmp_path: Path):
+    gfsm_dir = _write_gfsm(tmp_path)
+    det = GfsmAnomalyDetector(
+        gfsm_dir=gfsm_dir, topology="synth",
+        fb_to_col={("PLC1", "#0"): "p1"},
+    ).fit([])
+    # p1=2 -> "PLC1:2" not a known state, AND it is row 0 -> flagged.
+    out = det.predict(pd.DataFrame({"p1": [2, 0]}))
+    assert out.flags[0] == 1
+
+
+def test_unknown_then_recovery_is_conservatively_flagged(tmp_path: Path):
+    # Documented INTENTIONAL semantic: an unknown composite state is itself
+    # anomalous, and continuity THROUGH it cannot be validated against δ,
+    # so the first known row after an unknown gap is conservatively flagged
+    # (state-aware security errs toward flagging when conformance is
+    # unprovable). Trace 0 -> 2(unknown) -> 1.
+    gfsm_dir = _write_gfsm(tmp_path)
+    det = GfsmAnomalyDetector(
+        gfsm_dir=gfsm_dir, topology="synth",
+        fb_to_col={("PLC1", "#0"): "p1"},
+    ).fit([])
+    out = det.predict(pd.DataFrame({"p1": [0, 2, 1]}))
+    # row0: 0 known, no pred -> 0
+    # row1: "PLC1:2" unknown -> 1
+    # row2: 1 known but prev="PLC1:2" (unknown) so ("PLC1:2","PLC1:1")
+    #       not in allowed -> conservatively flagged 1
+    assert out.flags.tolist() == [0, 1, 1]
