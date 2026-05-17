@@ -1,5 +1,12 @@
-from gfsm.analysis import find_cycles
-from gfsm.model import FunctionBlock, State, Transition
+import pytest
+
+from gfsm.analysis import (
+    find_cycles,
+    find_dead_states,
+    find_unreachable_states,
+    validate_references,
+)
+from gfsm.model import FunctionBlock, GfsmError, State, Transition
 
 
 def _fb(states, edges) -> FunctionBlock:
@@ -32,3 +39,36 @@ def test_self_loop_detected():
 def test_single_node_no_self_loop_not_cycle():
     fb = _fb(["10", "20"], [("10", "20")])
     assert find_cycles(fb) == []
+
+
+def test_unreachable_via_no_incoming():
+    fb = _fb(["10", "20", "99"], [("10", "20")])
+    # 99 has no incoming and is not an initial-reachable target.
+    assert find_unreachable_states(fb) == ["99"]
+
+
+def test_unreachable_fallback_to_100():
+    fb = FunctionBlock.new("FB", "s")
+    for s in ("100", "200"):
+        fb.add_state(State.new(s))
+    fb.add_transition(Transition.new("100", "200", "c"))
+    fb.add_transition(Transition.new("200", "100", "c"))  # both have incoming
+    assert find_unreachable_states(fb) == []
+
+
+def test_dead_states():
+    fb = _fb(["10", "20"], [("10", "20")])
+    assert find_dead_states(fb) == ["20"]
+
+
+def test_validate_references_ok():
+    fb = _fb(["10", "20"], [("10", "20")])
+    validate_references(fb)  # no raise
+
+
+def test_validate_references_bad_raises():
+    fb = FunctionBlock.new("FB", "s")
+    fb.add_state(State.new("10"))
+    fb.transitions.append(Transition.new("10", "404", "c"))
+    with pytest.raises(GfsmError, match="Invalid state reference"):
+        validate_references(fb)
