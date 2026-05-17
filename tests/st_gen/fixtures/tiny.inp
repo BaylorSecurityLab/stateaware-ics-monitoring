@@ -1,0 +1,30 @@
+[TITLE]
+tiny test network
+
+[JUNCTIONS]
+;ID              	Elev        	Demand
+ J1              	50          	10
+
+[TANKS]
+;ID              	Elevation   	InitLevel   	MinLevel    	MaxLevel    	Diameter
+ T1              	71.5        	3           	0           	6.5         	31.3
+ T2              	71.5        	2           	0.5         	4.0         	10.0
+
+[PIPES]
+ P1              	J1              	T1              	100         	300         	100         	0           	open
+
+[PUMPS]
+;ID              	Node1           	Node2           	Parameters
+ PUMP1           	J1              	T1              	HEAD 8
+
+[VALVES]
+;ID              	Node1           	Node2           	Diameter    	Type	Setting
+ V1              	J1              	T2              	200         	PRV 	40.0
+
+[CONTROLS]
+LINK PUMP1 OPEN   IF NODE T1 BELOW 2.0
+LINK PUMP1 CLOSED IF NODE T1 ABOVE 5.5
+
+[RULES]
+
+[END]

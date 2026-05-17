@@ -1,0 +1,115 @@
+"""EPANET INP parser — only the sections st_gen needs."""
+
+from __future__ import annotations
+
+import re
+from pathlib import Path
+
+from .model import (
+    Control,
+    Network,
+    Pump,
+    Tank,
+    UnsupportedControlError,
+    UnsupportedRulesError,
+    Valve,
+)
+
+
+_SECTION_RE = re.compile(r"^\s*\[([A-Za-z_]+)\]\s*$")
+
+
+def _iter_section_lines(text: str):
+    """Yield (section_name, line_number, raw_line, stripped) for each data line.
+
+    Skips blank lines and full-line comments. Trailing `;...` is stripped from
+    data lines. `section_name` is uppercased.
+    """
+    section = None
+    for lineno, raw in enumerate(text.splitlines(), start=1):
+        m = _SECTION_RE.match(raw)
+        if m:
+            section = m.group(1).upper()
+            continue
+        if section is None:
+            continue
+        stripped = raw.strip()
+        if not stripped or stripped.startswith(";"):
+            continue
+        # strip inline ";..." trailing comment
+        semi = stripped.find(";")
+        data = stripped[:semi].strip() if semi != -1 else stripped
+        if not data:
+            continue
+        yield section, lineno, raw, data
+
+
+def parse_inp(path: str | Path) -> Network:
+    """Parse an EPANET INP file into a Network.
+
+    Consumes [TANKS], [PUMPS], [VALVES], [CONTROLS]; checks [RULES] is empty;
+    ignores everything else.
+    """
+    text = Path(path).read_text(encoding="utf-8", errors="replace")
+    tanks: list[Tank] = []
+    pumps: list[Pump] = []
+    valves: list[Valve] = []
+    controls: list[Control] = []
+
+    for section, lineno, _raw, data in _iter_section_lines(text):
+        if section == "TANKS":
+            tanks.append(_parse_tank(data, lineno))
+        elif section == "PUMPS":
+            pumps.append(_parse_pump(data, lineno))
+        elif section == "VALVES":
+            valves.append(_parse_valve(data, lineno))
+        elif section == "CONTROLS":
+            continue  # parsed in Task 3
+        elif section == "RULES":
+            raise UnsupportedRulesError(
+                f"[RULES] section is non-empty at line {lineno}: {data!r}. "
+                "st_gen does not support [RULES] yet."
+            )
+
+    return Network(tanks=tanks, pumps=pumps, valves=valves, controls=controls)
+
+
+def _parse_tank(data: str, lineno: int) -> Tank:
+    # EPANET [TANKS]: ID Elev InitLevel MinLevel MaxLevel Diameter [MinVol] [VolCurve] [Overflow]
+    parts = data.split()
+    if len(parts) < 6:
+        raise UnsupportedControlError(
+            f"[TANKS] line {lineno} has too few fields: {data!r}"
+        )
+    return Tank(id=parts[0], min_level=float(parts[3]), max_level=float(parts[4]))
+
+
+def _parse_pump(data: str, lineno: int) -> Pump:
+    parts = data.split()
+    if len(parts) < 3:
+        raise UnsupportedControlError(
+            f"[PUMPS] line {lineno} has too few fields: {data!r}"
+        )
+    return Pump(id=parts[0], node1=parts[1], node2=parts[2])
+
+
+def _parse_valve(data: str, lineno: int) -> Valve:
+    # ID Node1 Node2 Diameter Type Setting [MinorLoss]
+    parts = data.split()
+    if len(parts) < 6:
+        raise UnsupportedControlError(
+            f"[VALVES] line {lineno} has too few fields: {data!r}"
+        )
+    return Valve(
+        id=parts[0],
+        node1=parts[1],
+        node2=parts[2],
+        vtype=parts[4].upper(),
+        setting=float(parts[5]),
+    )
+
+
+def _parse_control(data: str, lineno: int) -> Control:
+    # Implemented in Task 3. Placeholder raises so tests in this task pass without
+    # accidentally hiding parse errors in the [CONTROLS] section.
+    raise NotImplementedError("Control parsing arrives in Task 3")
