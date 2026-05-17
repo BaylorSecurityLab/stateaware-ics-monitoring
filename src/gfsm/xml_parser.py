@@ -57,19 +57,27 @@ def _text(el: etree._Element | None) -> str | None:
     return None if el is None else el.text
 
 
+def _preprocess(content: str) -> str:
+    """Faithful port of xml_parser.rs:16-18 — opening-tag-only rewrite.
+
+    Rust rewrites ONLY the opening pair `<expression><integer-literal>` /
+    `<expression><boolean-literal>` to `<value>...`; the matching
+    `</expression>` close tag is deliberately left unchanged (Rust does the
+    same). On the real, pretty-printed AST these adjacent substrings never
+    occur, so this is a no-op there — byte-for-byte matching Rust. Do NOT
+    add a closing-tag rewrite; that would diverge from the Rust port.
+    """
+    return content.replace(
+        "<expression><integer-literal>", "<value><integer-literal>"
+    ).replace(
+        "<expression><boolean-literal>", "<value><boolean-literal>"
+    )
+
+
 class XmlParser:
     def __init__(self, content: str) -> None:
         # xml_parser.rs:16-18 — raw string replace BEFORE parsing.
-        # Rewrite <expression><literal> ... </expression> to <value><literal> ... </value>
-        content = content.replace(
-            "<expression><integer-literal>", "<value><integer-literal>"
-        ).replace(
-            "<expression><boolean-literal>", "<value><boolean-literal>"
-        ).replace(
-            "</integer-literal></expression>", "</integer-literal></value>"
-        ).replace(
-            "</boolean-literal></expression>", "</boolean-literal></value>"
-        )
+        content = _preprocess(content)
         self._content = content
         try:
             self._root = etree.fromstring(content.encode("utf-8"))

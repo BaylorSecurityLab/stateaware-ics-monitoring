@@ -3,12 +3,19 @@ import pytest
 from gfsm.model import GfsmError
 from gfsm.xml_parser import XmlParser
 
+# NOTE: real Stage-2 AST XML is pretty-printed (a newline + indent between
+# every open tag and its first child), so `<expression><integer-literal>`
+# adjacency never occurs and the faithful opening-only `_preprocess` is a
+# no-op on real data (exactly like the Rust `.replace`). These fixtures
+# mirror that real formatting so they stay well-formed after preprocessing.
 PROGRAM_XML = """<iec-source>
   <program-declaration>
     <program-type-name>PLC1</program-type-name>
     <function-block-body><statement-list>
       <case-statement>
-        <expression><variable-name>P78_State</variable-name></expression>
+        <expression>
+          <variable-name>P78_State</variable-name>
+        </expression>
         <case-element>
           <case-list><case-list-element>
             <integer-literal>0</integer-literal>
@@ -23,7 +30,9 @@ PROGRAM_XML = """<iec-source>
               <statement-list>
                 <assignment-statement>
                   <variable-name>P78_State</variable-name>
-                  <expression><integer-literal>1</integer-literal></expression>
+                  <expression>
+                    <integer-literal>1</integer-literal>
+                  </expression>
                 </assignment-statement>
               </statement-list>
             </if-statement>
@@ -59,13 +68,37 @@ def test_find_function_block_declaration():
     assert p.find_function_blocks() == ["FB1"]
 
 
-def test_preprocessing_rewrites_literal_expression():
-    p = XmlParser(PROGRAM_XML)
-    # The assignment value <expression><integer-literal>1 became
-    # <value><integer-literal>1 after preprocessing.
-    assert "<value><integer-literal>1" in p._content
-    # The case variable <expression><variable-name> is untouched.
-    assert "<expression><variable-name>P78_State" in p._content
+def test_preprocess_is_faithful_opening_only():
+    from gfsm.xml_parser import _preprocess
+
+    # Exactly the Rust .replace (xml_parser.rs:16-18): ONLY the opening
+    # "<expression><integer-literal>"/"<expression><boolean-literal>" pair
+    # is rewritten to "<value>...". The matching close tag stays
+    # "</expression>" (Rust does NOT rewrite it). "<expression><variable-name>"
+    # is never touched.
+    src = (
+        "<r>"
+        "<expression><integer-literal>1</integer-literal></expression>"
+        "<expression><boolean-literal>TRUE</boolean-literal></expression>"
+        "<expression><variable-name>S</variable-name></expression>"
+        "</r>"
+    )
+    assert _preprocess(src) == (
+        "<r>"
+        "<value><integer-literal>1</integer-literal></expression>"
+        "<value><boolean-literal>TRUE</boolean-literal></expression>"
+        "<expression><variable-name>S</variable-name></expression>"
+        "</r>"
+    )
+
+
+def test_preprocess_noop_on_pretty_printed_real_style():
+    from gfsm.xml_parser import _preprocess
+
+    # Real AST is pretty-printed: no adjacency -> preprocessing is a no-op,
+    # so the parsed content is byte-identical to the input (matches Rust).
+    assert _preprocess(PROGRAM_XML) == PROGRAM_XML
+    assert XmlParser(PROGRAM_XML)._content == PROGRAM_XML
 
 
 def test_malformed_xml_raises_gfsmerror():
