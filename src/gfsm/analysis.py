@@ -47,14 +47,15 @@ def find_unreachable_states(fb: FunctionBlock) -> list[str]:
         return []
     reachable: set[str] = set()
     queue: deque[str] = deque()
-    initial = sorted([s.id for s in fb.states.values() if not s.transitions_in])
+    initial = [s.id for s in fb.states.values() if not s.transitions_in]
     if not initial:
         if "100" in fb.states:
             queue.append("100")
         elif fb.states:
             queue.append(next(iter(fb.states.keys())))
     else:
-        queue.append(initial[0])
+        for s in initial:
+            queue.append(s)
     while queue:
         sid = queue.popleft()
         if sid in reachable:

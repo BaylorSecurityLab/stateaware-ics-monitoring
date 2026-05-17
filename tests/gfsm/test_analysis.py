@@ -41,10 +41,19 @@ def test_single_node_no_self_loop_not_cycle():
     assert find_cycles(fb) == []
 
 
-def test_unreachable_via_no_incoming():
-    fb = _fb(["10", "20", "99"], [("10", "20")])
-    # 99 has no incoming and is not an initial-reachable target.
-    assert find_unreachable_states(fb) == ["99"]
+def test_unreachable_isolated_component():
+    # Faithful Rust semantics (validator.rs:30-33): EVERY state with no
+    # incoming transitions is seeded as initial, so a no-incoming state is
+    # reachable by definition. A genuinely unreachable state must therefore
+    # have incoming edges yet be disconnected from all initial states.
+    # 10 is the only no-incoming state (initial). {50,60} form an isolated
+    # cycle (each has incoming from the other, neither initial) unreachable
+    # from 10. States preserve insertion order 10,20,50,60.
+    fb = _fb(
+        ["10", "20", "50", "60"],
+        [("10", "20"), ("50", "60"), ("60", "50")],
+    )
+    assert find_unreachable_states(fb) == ["50", "60"]
 
 
 def test_unreachable_fallback_to_100():
