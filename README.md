@@ -1,5 +1,32 @@
 # stateaware-ics-monitoring
 
+## Stage 4 — GFSM (`gfsm-build`)
+
+Stage 4 ("GFSM builder") is a faithful Python port of the Rust
+`fsm-extractor` (`github.com/LaBackDoor/fsm-extractor`, pinned commit
+`14950d5`) plus a new synchronous-product composer. It reads Stage 2's
+`<plc>.ast.xml` files, extracts each PLC's local FSM, and composes them into
+one global FSM per topology.
+
+```bash
+gfsm-build --topology anytown
+# or every topology with a Stage 2 analysis manifest:
+gfsm-build --all
+```
+
+For each PLC it writes into `data/generated/<topology>/gfsm/`:
+`<plc>.fsm.json`, `<plc>.fsm.dot`; per topology `<topology>.gfsm.json`,
+`<topology>.gfsm.dot`, `<topology>.gfsm.analysis.json`, plus
+`<topology>_gfsm_manifest.json` (provenance + per-PLC status, cross-checked
+against Stage 2's FSM counts).
+
+Flags: `--max-states N` (hard cap on global states; clean error on
+overflow), `--out-dir PATH`, `--jobs N` (process-pool fan-out across PLCs;
+`--jobs 1` is sequential; output is byte-identical regardless of `N`).
+
+The port is pinned by port-fidelity golden tests that diff Python JSON/DOT
+against the Rust binary; behavioral divergence fails CI.
+
 ## Stage 2 — ST analysis (`st-analyze`)
 
 Stage 2 ("parser") runs the vendored IEC-ST-Analyzer (`src/iec_st_compiler/`,
