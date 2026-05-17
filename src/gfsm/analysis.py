@@ -83,3 +83,37 @@ def validate_references(fb: FunctionBlock) -> None:
                 f"Invalid state reference in transition: "
                 f"to_state '{tr.to_state}'"
             )
+
+
+from dataclasses import dataclass, field  # noqa: E402
+
+
+@dataclass
+class FsmStatistics:
+    total_states: int
+    total_transitions: int
+    avg_transitions_per_state: float
+    max_transitions_from_state: int
+    unreachable_states: list[str] = field(default_factory=list)
+    dead_states: list[str] = field(default_factory=list)
+    cycles: list[list[str]] = field(default_factory=list)
+
+    @classmethod
+    def analyze(cls, fb: FunctionBlock) -> "FsmStatistics":
+        total_states = fb.state_count()
+        total_transitions = fb.transition_count()
+        avg = (
+            total_transitions / total_states if total_states > 0 else 0.0
+        )
+        max_out = max(
+            (len(s.transitions_out) for s in fb.states.values()), default=0
+        )
+        return cls(
+            total_states=total_states,
+            total_transitions=total_transitions,
+            avg_transitions_per_state=avg,
+            max_transitions_from_state=max_out,
+            unreachable_states=find_unreachable_states(fb),
+            dead_states=find_dead_states(fb),
+            cycles=find_cycles(fb),
+        )

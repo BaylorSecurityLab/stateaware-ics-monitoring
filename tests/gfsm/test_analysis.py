@@ -5,6 +5,7 @@ from gfsm.analysis import (
     find_dead_states,
     find_unreachable_states,
     validate_references,
+    FsmStatistics,
 )
 from gfsm.model import FunctionBlock, GfsmError, State, Transition
 
@@ -81,3 +82,23 @@ def test_validate_references_bad_raises():
     fb.transitions.append(Transition.new("10", "404", "c"))
     with pytest.raises(GfsmError, match="Invalid state reference"):
         validate_references(fb)
+
+
+def test_stats_basic():
+    fb = _fb(["10", "20", "30"],
+             [("10", "20"), ("10", "30"), ("20", "30")])
+    st = FsmStatistics.analyze(fb)
+    assert st.total_states == 3
+    assert st.total_transitions == 3
+    assert st.avg_transitions_per_state == 1.0
+    assert st.max_transitions_from_state == 2
+    assert st.dead_states == ["30"]
+    assert st.unreachable_states == []
+    assert st.cycles == []
+
+
+def test_stats_empty_fsm():
+    fb = FunctionBlock.new("FB", "s")
+    st = FsmStatistics.analyze(fb)
+    assert st.avg_transitions_per_state == 0.0
+    assert st.max_transitions_from_state == 0
