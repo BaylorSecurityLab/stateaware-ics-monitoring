@@ -1,3 +1,4 @@
+from gfsm.analysis import FsmStatistics
 from gfsm.compose import (
     Component,
     _component_choices,
@@ -6,6 +7,7 @@ from gfsm.compose import (
     _encode,
     _global_guard_str,
     _ordered_components,
+    global_as_function_block,
 )
 from gfsm.model import FunctionBlock, LocalFSM, Metadata, State, Transition
 from gfsm.signatures import Condition
@@ -227,3 +229,16 @@ def test_max_states_overflow_raises():
     with pytest.raises(GfsmError, match="max-states"):
         compose_global({"p1": LocalFSM([a], m), "p2": LocalFSM([b], m)},
                        max_states=4)
+
+
+def test_global_as_function_block_roundtrips_for_analysis():
+    a = _fb("A", ["10", "20"], [("10", "20", "P = 1")], case="SA")
+    b = _fb("B", ["30", "40"], [("30", "40", "Q = 1")], case="SB")
+    m = Metadata("s", "t", 0, 0)
+    g = compose_global({"p1": LocalFSM([a], m), "p2": LocalFSM([b], m)},
+                       max_states=100)
+    fb = global_as_function_block(g)
+    assert set(fb.states.keys()) == set(g.states.keys())
+    st = FsmStatistics.analyze(fb)
+    assert st.total_states == len(g.states)
+    assert st.total_transitions == len(g.transitions)

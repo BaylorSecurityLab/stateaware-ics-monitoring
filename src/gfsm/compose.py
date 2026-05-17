@@ -214,3 +214,23 @@ def compose_global(
         metadata=md,
         max_states=max_states,
     )
+
+
+from .model import State, Transition  # noqa: E402
+
+
+def global_as_function_block(g: GlobalFSM) -> FunctionBlock:
+    """Wrap a GlobalFSM as a FunctionBlock for Phase-D analysis reuse."""
+    fb = FunctionBlock.new("__global__", "__global__")
+    for sid in g.states.keys():
+        fb.add_state(State.new(sid))
+    for t in g.transitions:
+        tr = Transition(
+            id=t["id"],
+            from_state=t["from"],
+            to_state=t["to"],
+            condition=t["guard"],
+            raw_expression=t["guard"],
+        )
+        fb.add_transition(tr)
+    return fb
