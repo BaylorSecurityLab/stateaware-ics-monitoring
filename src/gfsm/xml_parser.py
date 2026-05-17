@@ -114,5 +114,54 @@ class XmlParser:
         return None
 
     def extract_function_block(self, name: str) -> FunctionBlockData:
-        # Implemented incrementally in B2/B3/B4; raises until then.
-        raise NotImplementedError
+        fb_node = self._find_block_node(name)
+        if fb_node is None:
+            raise GfsmError(f"Function block '{name}' not found")
+        case_stmt = _first(fb_node, "case-statement")
+        if case_stmt is None:
+            raise GfsmError(f"No case statement found in function block '{name}'")
+        case_variable = self._extract_case_variable(case_stmt)
+        case_elements = self._extract_case_elements(case_stmt)
+        return FunctionBlockData(
+            name=name,
+            case_variable=case_variable,
+            case_elements=case_elements,
+        )
+
+    def _extract_case_variable(self, case_stmt: etree._Element) -> str:
+        vn = _text(_first(case_stmt, "variable-name"))
+        if vn is None:
+            raise GfsmError("XML parsing error: Case variable not found")
+        return vn
+
+    def _extract_case_elements(
+        self, case_stmt: etree._Element
+    ) -> list[CaseElement]:
+        elements: list[CaseElement] = []
+        for node in case_stmt.iter():
+            if node.tag == "case-element":
+                try:
+                    elements.append(self._parse_case_element(node))
+                except GfsmError:
+                    # Rust: `if let Ok(element) = ...` — skip on error.
+                    continue
+        return elements
+
+    def _parse_case_element(self, element_node: etree._Element) -> CaseElement:
+        state_id = self._extract_state_id(element_node)
+        if_statements = self._extract_if_statements(element_node)
+        return CaseElement(state_id=state_id, if_statements=if_statements)
+
+    def _extract_state_id(self, element_node: etree._Element) -> str:
+        for node in element_node.iter():
+            if node.tag == "case-list-element":
+                for child in node.iter():
+                    if child.tag == "integer-literal" and child.text is not None:
+                        return child.text
+        raise GfsmError("XML parsing error: State ID not found")
+
+    def _extract_if_statements(
+        self, element_node: etree._Element
+    ) -> list[IfStatement]:
+        # Filled in Task B3.
+        return []

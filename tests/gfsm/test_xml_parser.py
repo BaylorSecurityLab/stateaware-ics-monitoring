@@ -104,3 +104,28 @@ def test_preprocess_noop_on_pretty_printed_real_style():
 def test_malformed_xml_raises_gfsmerror():
     with pytest.raises(GfsmError):
         XmlParser("<iec-source><unclosed>")
+
+
+def test_extract_case_variable_is_selector_not_inner():
+    p = XmlParser(PROGRAM_XML)
+    fbd = p.extract_function_block("PLC1")
+    assert fbd.name == "PLC1"
+    assert fbd.case_variable == "P78_State"
+    assert [ce.state_id for ce in fbd.case_elements] == ["0"]
+
+
+def test_block_not_found_raises():
+    p = XmlParser(PROGRAM_XML)
+    with pytest.raises(GfsmError, match="not found"):
+        p.extract_function_block("NOPE")
+
+
+def test_no_case_statement_raises():
+    xml = (
+        "<iec-source><program-declaration>"
+        "<program-type-name>P</program-type-name>"
+        "</program-declaration></iec-source>"
+    )
+    p = XmlParser(xml)
+    with pytest.raises(GfsmError, match="No case statement"):
+        p.extract_function_block("P")
