@@ -63,3 +63,42 @@ def test_emit_single_actuator(tmp_path):
     # Manifest
     assert manifest.topology == "mini"
     assert manifest.plcs[0]["actuators"] == ["PUMP1"]
+
+
+def test_emit_multi_actuator_and_cross_plc_sensor(tmp_path):
+    net = Network(
+        tanks=[Tank(id="T1", min_level=0.0, max_level=6.5)],
+        pumps=[
+            Pump(id="PU1", node1="J1", node2="T1"),
+            Pump(id="PU2", node1="J1", node2="T1"),
+        ],
+        valves=[Valve(id="V2", node1="J2", node2="T2", vtype="TCV", setting=0.0)],
+        controls=[
+            Control("PU1", "OPEN", "T1", "BELOW", 4.0),
+            Control("PU1", "CLOSED", "T1", "ABOVE", 6.3),
+            Control("PU2", "OPEN", "T1", "BELOW", 1.0),
+            Control("PU2", "CLOSED", "T1", "ABOVE", 4.5),
+            Control("V2", "OPEN", "T2", "BELOW", 0.5),
+            Control("V2", "CLOSED", "T2", "ABOVE", 5.5),
+        ],
+    )
+    plcs = [
+        Plc(name="PLC1", sensors=[], actuators=["PU1", "PU2"]),
+        Plc(name="PLC2", sensors=["T1"], actuators=[]),
+        Plc(name="PLC3", sensors=["T2"], actuators=["V2"]),
+    ]
+    emit(net, plcs, out_dir=tmp_path, topology="ct")
+
+    p1 = (tmp_path / "ct_plc1.st").read_text(encoding="utf-8")
+    # PLC1 references T1, which is owned by PLC2
+    assert "T1 : REAL;" in p1
+    assert "(* sourced from PLC2 *)" in p1
+    # Both CASE blocks present
+    assert "CASE PU1_State OF" in p1
+    assert "CASE PU2_State OF" in p1
+    # T1 deduplicated (one VAR_INPUT line, not two)
+    assert p1.count("T1 : REAL;") == 1
+
+    p3 = (tmp_path / "ct_plc3.st").read_text(encoding="utf-8")
+    assert "T2 : REAL;" in p3
+    assert "(* owned by this PLC *)" in p3
