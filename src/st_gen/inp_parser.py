@@ -7,6 +7,7 @@ from pathlib import Path
 
 from .model import (
     Control,
+    MalformedInpError,
     Network,
     Pump,
     Tank,
@@ -78,7 +79,7 @@ def _parse_tank(data: str, lineno: int) -> Tank:
     # EPANET [TANKS]: ID Elev InitLevel MinLevel MaxLevel Diameter [MinVol] [VolCurve] [Overflow]
     parts = data.split()
     if len(parts) < 6:
-        raise UnsupportedControlError(
+        raise MalformedInpError(
             f"[TANKS] line {lineno} has too few fields: {data!r}"
         )
     return Tank(id=parts[0], min_level=float(parts[3]), max_level=float(parts[4]))
@@ -87,7 +88,7 @@ def _parse_tank(data: str, lineno: int) -> Tank:
 def _parse_pump(data: str, lineno: int) -> Pump:
     parts = data.split()
     if len(parts) < 3:
-        raise UnsupportedControlError(
+        raise MalformedInpError(
             f"[PUMPS] line {lineno} has too few fields: {data!r}"
         )
     return Pump(id=parts[0], node1=parts[1], node2=parts[2])
@@ -97,7 +98,7 @@ def _parse_valve(data: str, lineno: int) -> Valve:
     # ID Node1 Node2 Diameter Type Setting [MinorLoss]
     parts = data.split()
     if len(parts) < 6:
-        raise UnsupportedControlError(
+        raise MalformedInpError(
             f"[VALVES] line {lineno} has too few fields: {data!r}"
         )
     return Valve(

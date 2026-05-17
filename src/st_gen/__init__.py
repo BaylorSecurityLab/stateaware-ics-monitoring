@@ -3,6 +3,7 @@
 from .inp_parser import parse_inp
 from .model import (
     Control,
+    MalformedInpError,
     Manifest,
     MultiStateActuatorError,
     Network,
@@ -20,6 +21,7 @@ from .st_emitter import emit
 
 __all__ = [
     "Control",
+    "MalformedInpError",
     "Manifest",
     "MultiStateActuatorError",
     "Network",

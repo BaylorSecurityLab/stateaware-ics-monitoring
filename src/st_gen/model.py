@@ -60,6 +60,10 @@ class UnsupportedControlError(StGenError):
     """Raised when an INP [CONTROLS] line uses a form st_gen does not handle."""
 
 
+class MalformedInpError(StGenError):
+    """Raised when a structural INP line ([TANKS]/[PUMPS]/[VALVES]) is malformed."""
+
+
 class UnsupportedRulesError(StGenError):
     """Raised when INP [RULES] section is non-empty."""
 

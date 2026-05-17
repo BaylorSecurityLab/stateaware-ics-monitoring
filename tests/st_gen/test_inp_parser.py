@@ -98,3 +98,11 @@ def test_parse_control_leading_dot_threshold(tmp_path):
     assert net.controls[0].threshold == 0.5
     assert net.controls[0].link_id == "V2"
     assert net.controls[0].comparator == "BELOW"
+
+
+def test_malformed_tank_raises_malformed_inp_error(tmp_path):
+    from st_gen.model import MalformedInpError
+    inp = tmp_path / "bad.inp"
+    inp.write_text("[TANKS]\n T1 50\n[END]\n", encoding="utf-8")
+    with pytest.raises(MalformedInpError):
+        parse_inp(inp)
