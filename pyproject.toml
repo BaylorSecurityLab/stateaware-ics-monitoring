@@ -22,7 +22,3 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/st_gen"]
-
-[tool.pytest.ini_options]
-testpaths = ["tests"]
-addopts = "-p no:cacheprovider"
