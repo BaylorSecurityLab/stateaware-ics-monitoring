@@ -7,6 +7,10 @@ pytest.importorskip("rtamt")
 
 from stl.driver import run_topology
 
+# ltown eval is a held-out NORMAL split (all y_true==0); sklearn warns that
+# y_pred contains a class absent from y_true. Expected & benign here.
+pytestmark = pytest.mark.filterwarnings("ignore::UserWarning")
+
 REPO = Path(__file__).resolve().parents[2]
 DATA = REPO / "data"
 DS = DATA / "ltown" / "dataset" / "dataset_manifest.yaml"

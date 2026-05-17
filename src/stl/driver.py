@@ -6,7 +6,6 @@ import json
 from pathlib import Path
 from typing import Any
 
-import numpy as np
 import pandas as pd
 
 from dataio.loader import load_topology
@@ -41,7 +40,7 @@ def run_topology(*, topology: str, data_root: Path, out_dir: Path | None,
     for sc in dataset.eval_scenarios:
         flags, scores = det.predict(sc.frame, jobs=jobs)
         y = sc.labels.astype(int)
-        m = detection_metrics(y, flags, scores) if len(np.unique(y)) >= 1 else {}
+        m = detection_metrics(y, flags, scores)
         scen_status.append({"name": sc.name, "n": int(len(y)),
                             "attack_rows": int(y.sum()), "metrics": m})
         for i in range(len(y)):
