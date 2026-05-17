@@ -106,3 +106,14 @@ def test_malformed_tank_raises_malformed_inp_error(tmp_path):
     inp.write_text("[TANKS]\n T1 50\n[END]\n", encoding="utf-8")
     with pytest.raises(MalformedInpError):
         parse_inp(inp)
+
+
+def test_parse_control_trailing_dot_threshold(tmp_path):
+    inp = tmp_path / "td.inp"
+    inp.write_text(
+        "[CONTROLS]\nLINK P1 OPEN IF NODE T1 BELOW 100.\n[END]\n",
+        encoding="utf-8",
+    )
+    net = parse_inp(inp)
+    assert len(net.controls) == 1
+    assert net.controls[0].threshold == 100.0

@@ -111,7 +111,7 @@ def _parse_valve(data: str, lineno: int) -> Valve:
 
 
 _CONTROL_RE = re.compile(
-    r"^\s*LINK\s+(\S+)\s+(OPEN|CLOSED)\s+IF\s+NODE\s+(\S+)\s+(BELOW|ABOVE)\s+(-?\d*\.?\d+)\s*$",
+    r"^\s*LINK\s+(\S+)\s+(OPEN|CLOSED)\s+IF\s+NODE\s+(\S+)\s+(BELOW|ABOVE)\s+(-?(?:\d+\.?\d*|\.\d+))\s*$",
     re.IGNORECASE,
 )
 
