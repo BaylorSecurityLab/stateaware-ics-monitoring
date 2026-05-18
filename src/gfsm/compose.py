@@ -46,7 +46,10 @@ def _component_initial(fb: FunctionBlock) -> str:
 
 
 def _encode(comps: list[Component], local_ids: tuple[str, ...]) -> str:
-    return "|".join(f"{c.plc}:{sid}" for c, sid in zip(comps, local_ids))
+    return "|".join(
+        f"{c.plc}.{c.fb.case_variable}:{sid}"
+        for c, sid in zip(comps, local_ids)
+    )
 
 
 def _component_choices(

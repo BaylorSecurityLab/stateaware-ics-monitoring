@@ -55,7 +55,7 @@ def test_encode_is_canonical():
     b = _fb("B", ["20"], [])
     m = Metadata("s", "t", 0, 0)
     comps = _ordered_components({"p2": LocalFSM([b], m), "p1": LocalFSM([a], m)})
-    assert _encode(comps, ("10", "20")) == "p1:10|p2:20"
+    assert _encode(comps, ("10", "20")) == "p1.S:10|p2.S:20"
 
 
 def test_component_choices_includes_viable_and_excludes_unsat():
@@ -132,25 +132,25 @@ def test_two_fsm_product_hand_computed():
     g = compose_global(
         {"p1": LocalFSM([a], m), "p2": LocalFSM([b], m)}, max_states=100
     )
-    assert g.initial == "p1:10|p2:30"
+    assert g.initial == "p1.SA:10|p2.SB:30"
     ids = set(g.states.keys())
-    assert "p1:10|p2:30" in ids
-    assert "p1:20|p2:40" in ids
+    assert "p1.SA:10|p2.SB:30" in ids
+    assert "p1.SA:20|p2.SB:40" in ids
     # Semantics B (full product + optional stutter): from the initial state
     # each component may move or stutter; the all-stutter step is dropped.
     # So 3 successors: joint move, A-only (B stutters), B-only (A stutters).
     out = sorted(
         (t["to"], t["guard"]) for t in g.transitions
-        if t["from"] == "p1:10|p2:30"
+        if t["from"] == "p1.SA:10|p2.SB:30"
     )
     assert out == [
-        ("p1:10|p2:40", "Q = 1"),
-        ("p1:20|p2:30", "P = 1"),
-        ("p1:20|p2:40", "P = 1 AND Q = 1"),
+        ("p1.SA:10|p2.SB:40", "Q = 1"),
+        ("p1.SA:20|p2.SB:30", "P = 1"),
+        ("p1.SA:20|p2.SB:40", "P = 1 AND Q = 1"),
     ]
     joint = [
         t for t in g.transitions
-        if t["from"] == "p1:10|p2:30" and t["to"] == "p1:20|p2:40"
+        if t["from"] == "p1.SA:10|p2.SB:30" and t["to"] == "p1.SA:20|p2.SB:40"
     ]
     assert len(joint) == 1
     assert joint[0]["components"] == {
@@ -166,9 +166,9 @@ def test_stutter_when_one_component_dead():
     g = compose_global(
         {"p1": LocalFSM([a], m), "p2": LocalFSM([b], m)}, max_states=100
     )
-    out = [t for t in g.transitions if t["from"] == "p1:10|p2:30"]
+    out = [t for t in g.transitions if t["from"] == "p1.SA:10|p2.SB:30"]
     assert len(out) == 1
-    assert out[0]["to"] == "p1:20|p2:30"
+    assert out[0]["to"] == "p1.SA:20|p2.SB:30"
     assert out[0]["components"]["p2:B"] is None  # stuttered
     assert out[0]["guard"] == "P = 1"
 
@@ -182,7 +182,7 @@ def test_all_stutter_step_dropped():
         {"p1": LocalFSM([a], m), "p2": LocalFSM([b], m)}, max_states=100
     )
     assert g.transitions == []
-    assert list(g.states.keys()) == ["p1:10|p2:30"]
+    assert list(g.states.keys()) == ["p1.SA:10|p2.SB:30"]
 
 
 def test_unsat_combination_pruned():
@@ -197,11 +197,11 @@ def test_unsat_combination_pruned():
     )
     out = sorted(
         (t["to"], t["guard"]) for t in g.transitions
-        if t["from"] == "p1:10|p2:30"
+        if t["from"] == "p1.SA:10|p2.SB:30"
     )
     assert out == [
-        ("p1:10|p2:40", "X = low"),
-        ("p1:20|p2:30", "X = high"),
+        ("p1.SA:10|p2.SB:40", "X = low"),
+        ("p1.SA:20|p2.SB:30", "X = high"),
     ]
 
 
@@ -242,3 +242,16 @@ def test_global_as_function_block_roundtrips_for_analysis():
     st = FsmStatistics.analyze(fb)
     assert st.total_states == len(g.states)
     assert st.total_transitions == len(g.transitions)
+
+
+def test_encode_is_plc_dot_casevar_colon_sid():
+    fb78 = FunctionBlock.new("P78_State", "P78_State")
+    fb79 = FunctionBlock.new("P79_State", "P79_State")
+    comps = [Component("PLC1", fb78), Component("PLC1", fb79)]
+    assert _encode(comps, ("0", "1")) == "PLC1.P78_State:0|PLC1.P79_State:1"
+
+    md = Metadata("x", "x", 0, 0)
+    lf = LocalFSM(function_blocks=[fb79, fb78], metadata=md)
+    ordered = _ordered_components({"PLC1": lf})
+    # sorted by (plc, fb.name == case_var): P78 before P79
+    assert [c.fb.name for c in ordered] == ["P78_State", "P79_State"]
