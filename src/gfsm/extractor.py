@@ -30,17 +30,18 @@ class FsmExtractor:
 
         for name in names:
             try:
-                fb_data = self._parser.extract_function_block(name)
+                fb_data_list = self._parser.extract_function_blocks(name)
             except GfsmError:
-                continue  # Rust `if let Ok(fb_data)` — skip on error.
-            try:
-                fb = self._build_function_block(fb_data)
-            except GfsmError:
-                continue
-            if fb.state_count() > 0 or fb.transition_count() > 0:
-                total_states += fb.state_count()
-                total_transitions += fb.transition_count()
-                function_blocks.append(fb)
+                continue  # Rust `if let Ok(...)` — skip on error.
+            for fb_data in fb_data_list:
+                try:
+                    fb = self._build_function_block(fb_data)
+                except GfsmError:
+                    continue
+                if fb.state_count() > 0 or fb.transition_count() > 0:
+                    total_states += fb.state_count()
+                    total_transitions += fb.transition_count()
+                    function_blocks.append(fb)
 
         metadata = Metadata(
             source_file=self._source_path,
@@ -51,7 +52,10 @@ class FsmExtractor:
         return LocalFSM(function_blocks=function_blocks, metadata=metadata)
 
     def _build_function_block(self, fb_data: FunctionBlockData) -> FunctionBlock:
-        fb = FunctionBlock.new(fb_data.name, fb_data.case_variable)
+        # Identity is the actuator CASE selector — unique within a PLC and
+        # stable across runs, so compose._ordered_components sorts
+        # per-actuator deterministically.
+        fb = FunctionBlock.new(fb_data.case_variable, fb_data.case_variable)
 
         # First pass: create all states.
         for element in fb_data.case_elements:

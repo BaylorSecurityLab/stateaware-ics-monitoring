@@ -96,7 +96,7 @@ AUTO_CREATE = """<iec-source><function-block-declaration>
 def test_extract_states_and_transition():
     fsm = FsmExtractor(XmlParser(TWO_STATE), "mem.xml").extract()
     fb = fsm.function_blocks[0]
-    assert fb.name == "FB"
+    assert fb.name == "S"  # identity = case_variable (Task 2 contract)
     assert fb.case_variable == "S"
     assert list(fb.states.keys()) == ["10", "20"]
     assert len(fb.transitions) == 1
@@ -134,3 +134,61 @@ def test_empty_block_dropped():
            "</function-block-declaration></iec-source>")
     fsm = FsmExtractor(XmlParser(xml), "m.xml").extract()
     assert fsm.function_blocks == []
+
+
+def test_extract_one_fb_per_case_named_by_case_var():
+    from gfsm.xml_parser import XmlParser
+    from gfsm.extractor import FsmExtractor
+    xml = """<iec-source>
+      <program-declaration>
+        <program-type-name>PLC1</program-type-name>
+        <function-block-body><statement-list>
+          <case-statement>
+            <expression><variable-name>P78_State</variable-name></expression>
+            <case-element>
+              <case-list><case-list-element>
+                <integer-literal>0</integer-literal>
+              </case-list-element></case-list>
+              <statement-list><if-statement>
+                <expression>
+                  <variable-name>T41</variable-name>
+                  <less-than/><integer-literal>5</integer-literal>
+                </expression>
+                <statement-list><assignment-statement>
+                  <variable-name>P78_State</variable-name>
+                  <expression>
+                    <integer-literal>1</integer-literal>
+                  </expression>
+                </assignment-statement></statement-list>
+              </if-statement></statement-list>
+            </case-element>
+          </case-statement>
+          <case-statement>
+            <expression><variable-name>P79_State</variable-name></expression>
+            <case-element>
+              <case-list><case-list-element>
+                <integer-literal>0</integer-literal>
+              </case-list-element></case-list>
+              <statement-list><if-statement>
+                <expression>
+                  <variable-name>T42</variable-name>
+                  <less-than/><integer-literal>9</integer-literal>
+                </expression>
+                <statement-list><assignment-statement>
+                  <variable-name>P79_State</variable-name>
+                  <expression>
+                    <integer-literal>1</integer-literal>
+                  </expression>
+                </assignment-statement></statement-list>
+              </if-statement></statement-list>
+            </case-element>
+          </case-statement>
+        </statement-list></function-block-body>
+      </program-declaration>
+    </iec-source>"""
+    lf = FsmExtractor(XmlParser(xml), "<mem>").extract()
+    names = sorted(fb.name for fb in lf.function_blocks)
+    assert names == ["P78_State", "P79_State"]
+    for fb in lf.function_blocks:
+        assert fb.name == fb.case_variable
+        assert fb.transition_count() >= 1
