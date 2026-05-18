@@ -74,9 +74,9 @@ traces sliced to `Ds`, filter to confidence ≥ 0.7 and support ≥ 0.1, and
 persist the invariant mapping `Φ(s)`.
 
 ```bash
-invariants-mine --topology anytown --gfsm-dir data/generated/anytown/gfsm
-# or every topology that has a <topo>.gfsm.json:
-invariants-mine --all --gfsm-dir data/generated
+invariants-mine --topology anytown --data-root data
+# or every topology that has data/generated/<topo>/gfsm/<topo>.gfsm.json:
+invariants-mine --all --data-root data
 ```
 
 Writes `data/generated/<topo>/invariants/<topo>_phi.json` +

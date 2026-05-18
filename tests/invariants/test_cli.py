@@ -30,19 +30,19 @@ def test_cli_runs_anytown_if_present(tmp_path: Path):
 
 
 def test_all_skips_stray_dirs_and_continues(tmp_path: Path, capsys):
-    gfsm_dir = tmp_path / "gfsm"
-    (gfsm_dir / "__pycache__").mkdir(parents=True)   # stray, must be ignored
-    (gfsm_dir / "bogus").mkdir()                      # dir without .gfsm.json
-    # 'bogus' has no bogus.gfsm.json so it is NOT discovered → no error,
-    # no topologies → overall_ok stays True → rc 0.
-    rc = main(["--all", "--gfsm-dir", str(gfsm_dir),
-               "--data-root", str(tmp_path), "--out", str(tmp_path / "o")])
-    assert rc == 0  # nothing discovered (stray/.gfsm-less dirs excluded)
+    gen_root = tmp_path / "generated"
+    (gen_root / "__pycache__").mkdir(parents=True)   # stray, must be ignored
+    (gen_root / "bogus" / "gfsm").mkdir(parents=True)  # dir without .gfsm.json
+    # 'bogus' has no bogus/gfsm/bogus.gfsm.json so it is NOT discovered →
+    # zero topologies found → hard error rc 2.
+    rc = main(["--all", "--data-root", str(tmp_path)])
+    assert rc == 2  # empty discovery is a hard error, not silent rc 0
+    assert "error:" in capsys.readouterr().err
 
 
 def test_all_processes_only_dirs_with_gfsm_json(tmp_path: Path, capsys):
-    gfsm_dir = tmp_path / "gfsm"
-    good = gfsm_dir / "synthx"
+    # canonical layout: <data_root>/generated/<topo>/gfsm/<topo>.gfsm.json
+    good = tmp_path / "generated" / "synthx" / "gfsm"
     good.mkdir(parents=True)
     (good / "synthx.gfsm.json").write_text(json.dumps({
         "initial": "PLC1:0", "states": {"PLC1:0": ["0"]},
@@ -52,7 +52,6 @@ def test_all_processes_only_dirs_with_gfsm_json(tmp_path: Path, capsys):
     }))
     # 'synthx' discovered but get_profile('synthx') raises StlError → caught
     # as a clean config error → rc 2, message on stderr, no crash.
-    rc = main(["--all", "--gfsm-dir", str(gfsm_dir),
-               "--data-root", str(tmp_path), "--out", str(tmp_path / "o")])
+    rc = main(["--all", "--data-root", str(tmp_path)])
     assert rc == 2
     assert "error:" in capsys.readouterr().err

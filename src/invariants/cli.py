@@ -18,8 +18,9 @@ def _build_parser() -> argparse.ArgumentParser:
         "GFSM state.",
     )
     p.add_argument("--data-root", type=Path, default=Path("data"))
-    p.add_argument("--gfsm-dir", type=Path, required=True,
-                   help="dir containing <topology>.gfsm.json + manifest")
+    p.add_argument("--gfsm-dir", type=Path, default=None,
+                   help="override per-topology gfsm dir "
+                   "(default: <data-root>/generated/<topology>/gfsm)")
     grp = p.add_mutually_exclusive_group(required=True)
     grp.add_argument("--topology")
     grp.add_argument("--all", action="store_true")
@@ -35,6 +36,12 @@ def _build_parser() -> argparse.ArgumentParser:
     return p
 
 
+def _gfsm_dir_for(topo: str, args: argparse.Namespace) -> Path:
+    if args.gfsm_dir is not None:
+        return args.gfsm_dir
+    return args.data_root / "generated" / topo / "gfsm"
+
+
 def _resolve_fb_to_col(
     topo: str, gfsm_dir: Path, data_root: Path
 ) -> dict[tuple[str, str], str]:
@@ -47,30 +54,42 @@ def main(argv: list[str] | None = None) -> int:
     args = _build_parser().parse_args(argv)
 
     if args.all:
+        gen_root = args.data_root / "generated"
         topologies = (
             sorted(
                 d.name
-                for d in args.gfsm_dir.iterdir()
+                for d in gen_root.iterdir()
                 if d.is_dir()
                 and not d.name.startswith((".", "_"))
-                and (d / f"{d.name}.gfsm.json").exists()
+                and (d / "gfsm" / f"{d.name}.gfsm.json").exists()
             )
-            if args.gfsm_dir.exists()
+            if gen_root.exists()
             else []
         )
+        if not topologies:
+            print(
+                f"error: --all found no topologies with "
+                f"<topo>/gfsm/<topo>.gfsm.json under {gen_root}",
+                file=sys.stderr,
+            )
+            return 2
     else:
         topologies = [args.topology]
 
     overall_ok = True
     had_error = False
     for topo in topologies:
-        out = args.out if args.out else (
-            args.data_root / "generated" / topo / "invariants")
+        gfsm_dir = _gfsm_dir_for(topo, args)
+        if args.all:
+            out = args.data_root / "generated" / topo / "invariants"
+        else:
+            out = args.out if args.out else (
+                args.data_root / "generated" / topo / "invariants")
         try:
-            fb_to_col = _resolve_fb_to_col(topo, args.gfsm_dir, args.data_root)
+            fb_to_col = _resolve_fb_to_col(topo, gfsm_dir, args.data_root)
             manifest = mine_topology(
                 topology=topo, data_root=args.data_root,
-                gfsm_dir=args.gfsm_dir, out_dir=out,
+                gfsm_dir=gfsm_dir, out_dir=out,
                 fb_to_col=fb_to_col,
                 min_observations=args.min_observations,
                 max_evals=args.max_evals, seed=args.seed,
