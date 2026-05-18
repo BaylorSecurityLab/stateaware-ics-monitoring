@@ -17,39 +17,44 @@ from .model import InvariantsError
 
 
 def encode(components: list[tuple[str, str]], local_ids: tuple[str, ...]) -> str:
-    """Encode (plc, fb_name) components + their current state IDs."""
+    """Encode (plc, case_var) components + their state IDs.
+
+    Byte-identical to gfsm.compose._encode (the single source of truth):
+    "|".join(f"{plc}.{case_var}:{sid}").
+    """
     if len(components) != len(local_ids):
         raise InvariantsError(
             f"component/local_ids length mismatch: "
             f"{len(components)} vs {len(local_ids)}"
         )
     return "|".join(
-        f"{plc}:{sid}" for (plc, _fb), sid in zip(components, local_ids)
+        f"{plc}.{cv}:{sid}"
+        for (plc, cv), sid in zip(components, local_ids)
     )
 
 
 def load_gfsm_components(gfsm_dict: dict[str, Any]) -> list[tuple[str, str]]:
-    """Recover the (plc, fb_name) component ordering from a GFSM JSON dict.
+    """Recover the ordered (plc, case_var) components from a GFSM JSON.
 
-    The GFSM JSON `states` keys carry only plc names per position (the
-    fb_name is not recoverable from the key alone). The caller supplies the
-    precise (plc, fb_name) tuples via the profile-derived fb_to_col map;
-    this returns positional (plc, "#i") tuples in the correct ORDER so the
-    caller can zip them against its own ordered fb list.
+    Each `|` segment is `<plc>.<case_var>:<sid>`. Split on the LAST ':'
+    to peel `sid` (sid is digits, never contains ':' or '.'), then on the
+    FIRST '.' to separate plc from case_var (plc never contains '.';
+    case_var may in principle, so first-split is correct).
     """
     states = gfsm_dict.get("states") or {}
     if not states:
         raise InvariantsError("gfsm json has no 'states'")
     sample_key = next(iter(states))
-    parts = sample_key.split("|")
     components: list[tuple[str, str]] = []
-    for i, part in enumerate(parts):
-        if ":" not in part:
+    for part in sample_key.split("|"):
+        if ":" not in part or "." not in part:
             raise InvariantsError(
-                f"malformed gfsm state key segment {part!r} in {sample_key!r}"
+                f"malformed gfsm state key segment {part!r} in "
+                f"{sample_key!r} (expected <plc>.<case_var>:<sid>)"
             )
-        plc, _sid = part.split(":", 1)
-        components.append((plc, f"#{i}"))
+        left, _sid = part.rsplit(":", 1)
+        plc, case_var = left.split(".", 1)
+        components.append((plc, case_var))
     return components
 
 
@@ -125,7 +130,8 @@ def label_frame(
     sub = selected.astype(int).astype(str)
     return sub.apply(
         lambda row: "|".join(
-            f"{plc}:{sid}" for (plc, _fb), sid in zip(components, row)
+            f"{plc}.{cv}:{sid}"
+            for (plc, cv), sid in zip(components, row)
         ),
         axis=1,
     )
