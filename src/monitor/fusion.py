@@ -1,4 +1,9 @@
-"""Combine per-detector step flags. Final label = logical OR."""
+"""Combine per-detector step flags.
+
+fuse_or: OR of all detectors (baseline).
+fuse_intersection: (any logical detector) AND (any physical detector) —
+the paper's intersection of logical invariants and physical consistencies.
+"""
 
 from __future__ import annotations
 
