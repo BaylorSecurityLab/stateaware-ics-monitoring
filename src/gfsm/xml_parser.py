@@ -113,20 +113,33 @@ class XmlParser:
                 return node
         return None
 
-    def extract_function_block(self, name: str) -> FunctionBlockData:
+    def extract_function_blocks(self, name: str) -> list[FunctionBlockData]:
+        """One FunctionBlockData per CASE construct in the program (paper
+        Def 1: one FSM per CASE). Case-statements are siblings in the
+        st_gen-emitted program body; doc-order is stable.
+        """
         fb_node = self._find_block_node(name)
         if fb_node is None:
             raise GfsmError(f"Function block '{name}' not found")
-        case_stmt = _first(fb_node, "case-statement")
-        if case_stmt is None:
-            raise GfsmError(f"No case statement found in function block '{name}'")
-        case_variable = self._extract_case_variable(case_stmt)
-        case_elements = self._extract_case_elements(case_stmt)
-        return FunctionBlockData(
-            name=name,
-            case_variable=case_variable,
-            case_elements=case_elements,
-        )
+        case_stmts = [
+            n for n in fb_node.iter() if n.tag == "case-statement"
+        ]
+        if not case_stmts:
+            raise GfsmError(
+                f"No case statement found in function block '{name}'"
+            )
+        out: list[FunctionBlockData] = []
+        for case_stmt in case_stmts:
+            out.append(FunctionBlockData(
+                name=name,
+                case_variable=self._extract_case_variable(case_stmt),
+                case_elements=self._extract_case_elements(case_stmt),
+            ))
+        return out
+
+    def extract_function_block(self, name: str) -> FunctionBlockData:
+        """First CASE only (backward-compat for single-CASE callers)."""
+        return self.extract_function_blocks(name)[0]
 
     def _extract_case_variable(self, case_stmt: etree._Element) -> str:
         vn = _text(_first(case_stmt, "variable-name"))

@@ -214,3 +214,74 @@ def test_assignment_defaults_empty_strings():
     a = fbd.case_elements[0].if_statements[0].assignments[0]
     assert a.variable == ""
     assert a.value == ""
+
+
+# ---------------------------------------------------------------------------
+# Tests for extract_function_blocks (plural) — one FBD per CASE construct
+# ---------------------------------------------------------------------------
+
+MULTI_CASE_XML = """<iec-source>
+  <program-declaration>
+    <program-type-name>PLC1</program-type-name>
+    <function-block-body><statement-list>
+      <case-statement>
+        <expression>
+          <variable-name>P78_State</variable-name>
+        </expression>
+        <case-element>
+          <case-list><case-list-element>
+            <integer-literal>0</integer-literal>
+          </case-list-element></case-list>
+        </case-element>
+      </case-statement>
+      <case-statement>
+        <expression>
+          <variable-name>P79_State</variable-name>
+        </expression>
+        <case-element>
+          <case-list><case-list-element>
+            <integer-literal>0</integer-literal>
+          </case-list-element></case-list>
+        </case-element>
+      </case-statement>
+    </statement-list></function-block-body>
+  </program-declaration>
+</iec-source>"""
+
+
+def test_extract_function_blocks_one_per_case():
+    p = XmlParser(MULTI_CASE_XML)
+    fbds = p.extract_function_blocks("PLC1")
+    assert [f.case_variable for f in fbds] == ["P78_State", "P79_State"]
+    assert all(f.name == "PLC1" for f in fbds)
+    assert [ce.state_id for ce in fbds[0].case_elements] == ["0"]
+
+
+def test_extract_function_blocks_single_case():
+    p = XmlParser(PROGRAM_XML)
+    fbds = p.extract_function_blocks("PLC1")
+    assert len(fbds) == 1
+    assert fbds[0].case_variable == "P78_State"
+
+
+def test_extract_function_blocks_not_found_raises():
+    p = XmlParser(PROGRAM_XML)
+    with pytest.raises(GfsmError, match="not found"):
+        p.extract_function_blocks("NOPE")
+
+
+def test_extract_function_blocks_no_case_raises():
+    xml = (
+        "<iec-source><program-declaration>"
+        "<program-type-name>P</program-type-name>"
+        "</program-declaration></iec-source>"
+    )
+    with pytest.raises(GfsmError, match="No case statement"):
+        XmlParser(xml).extract_function_blocks("P")
+
+
+def test_extract_function_block_still_returns_first_case():
+    # Backward-compat: existing single-CASE callers/tests unchanged.
+    p = XmlParser(MULTI_CASE_XML)
+    fbd = p.extract_function_block("PLC1")
+    assert fbd.case_variable == "P78_State"
