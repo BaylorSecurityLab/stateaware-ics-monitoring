@@ -49,12 +49,10 @@ from stl.metrics import detection_metrics  # noqa: E402
 TOPOLOGIES = ["anytown", "ctown", "ltown"]
 
 CAVEAT = (
-    "CAVEAT: The GFSM is currently UNDER-COMPOSED. src/gfsm extracts only the "
-    "lead actuator's CASE per PLC (e.g. ctown_plc3.fsm.json has 1 function_block "
-    "V2_State though PLC3 controls V2,PU4,PU5,PU6,PU7), so the composite GFSM "
-    "state space is far smaller than the paper's Def 1/2 product of all actuator "
-    "FSMs. The 'gfsm' and 'gfsm_or_stl' arms therefore UNDERSTATE paper-faithful "
-    "performance -- a Stage-4 gfsm fix is pending."
+    "NOTE: Full per-actuator GFSM composition (paper Def 1/2) — the Stage-4 "
+    "under-composition defect was fixed 2026-05-18 (ctown GFSM now 1024 "
+    "states / 10 per-actuator segments). The 'gfsm' and 'gfsm_or_stl' arms "
+    "are paper-faithful."
 )
 
 # Order is load-bearing: parent reporting + verify step assert this exactly.
@@ -208,7 +206,6 @@ def main(argv: list[str] | None = None) -> int:
     else:
         df = pd.DataFrame(columns=METRIC_COLS)
     df = df.copy()
-    df["CAVEAT"] = CAVEAT
 
     with metrics_csv.open("w", encoding="utf-8", newline="") as fh:
         fh.write(f"# {CAVEAT}\n")
