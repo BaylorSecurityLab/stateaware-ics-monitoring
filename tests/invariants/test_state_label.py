@@ -103,37 +103,30 @@ def test_load_components_raises_on_segment_without_dot():
         load_gfsm_components(bad)
 
 
-def test_resolve_fb_to_col_direct_and_s_prefix_and_lower():
+def test_resolve_fb_to_col_per_actuator_column_map_chain():
     from invariants.state_label import resolve_fb_to_col
-    comps = [("PLC1", "#0"), ("PLC3", "#1")]
-    gman = {"plcs": [
-        {"name": "PLC1", "counts": {"function_blocks": 1},
-         "stage2_fsms": [{"actuator": "PU1"}]},
-        {"name": "PLC3", "counts": {"function_blocks": 1},
-         "stage2_fsms": [{"actuator": "P78"}]},
-        {"name": "PLC9", "counts": {"function_blocks": 0},
-         "stage2_fsms": []},
-    ]}
-    colmap = {"P78": "p78", "S_PU1": "s_pu1"}  # PLC1→PU1→S_PU1→s_pu1; PLC3→P78→p78
-    m = resolve_fb_to_col(comps, gman, colmap)
-    assert m == {("PLC1", "#0"): "s_pu1", ("PLC3", "#1"): "p78"}
+    comps = [("PLC3", "V2_State"), ("PLC1", "P78_State"),
+             ("PLC2", "PUMP_1_State")]
+    col_map = {"V2": "s_v2", "P78": "p78"}  # PUMP_1 only via .lower()
+    out = resolve_fb_to_col(comps, col_map)
+    assert out[("PLC3", "V2_State")] == "s_v2"
+    assert out[("PLC1", "P78_State")] == "p78"
+    assert out[("PLC2", "PUMP_1_State")] == "pump_1"  # lower() fallback
 
 
-def test_resolve_fb_to_col_lowercase_fallback():
+def test_resolve_fb_to_col_s_prefix_fallback():
     from invariants.state_label import resolve_fb_to_col
-    comps = [("PLC1", "#0")]
-    gman = {"plcs": [{"name": "PLC1", "counts": {"function_blocks": 1},
-                      "stage2_fsms": [{"actuator": "PUMP_1"}]}]}
-    m = resolve_fb_to_col(comps, gman, {})  # no column_map → PUMP_1→pump_1
-    assert m == {("PLC1", "#0"): "pump_1"}
+    out = resolve_fb_to_col([("PLC3", "PU4_State")], {"S_PU4": "s_pu4"})
+    assert out[("PLC3", "PU4_State")] == "s_pu4"
 
 
-def test_resolve_fb_to_col_unresolvable_raises():
-    import pytest
+def test_resolve_fb_to_col_unresolved_raises_naming_component():
+    # Genuine unresolved condition: an empty actuator (case_var has no
+    # name before "_State") yields nothing through the UPPER→S_+ACT→lower
+    # chain, so it raises and the message names the component. (A non-empty
+    # actuator always resolves via the lower() fallback by design — that
+    # fallback is load-bearing for real lowercase dataset columns.)
     from invariants.model import InvariantsError
     from invariants.state_label import resolve_fb_to_col
-    comps = [("PLC1", "#0")]
-    gman = {"plcs": [{"name": "PLC1", "counts": {"function_blocks": 0},
-                      "stage2_fsms": []}]}  # no lead actuator → unresolvable
-    with pytest.raises(InvariantsError, match="cannot resolve dataset column"):
-        resolve_fb_to_col(comps, gman, {})
+    with pytest.raises(InvariantsError, match=r"PLC9.*_State"):
+        resolve_fb_to_col([("PLC9", "_State")], {})

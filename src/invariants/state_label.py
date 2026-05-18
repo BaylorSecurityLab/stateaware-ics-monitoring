@@ -60,32 +60,22 @@ def load_gfsm_components(gfsm_dict: dict[str, Any]) -> list[tuple[str, str]]:
 
 def resolve_fb_to_col(
     components: list[tuple[str, str]],
-    gfsm_manifest: dict[str, Any],
     dataset_column_map: dict[str, str],
 ) -> dict[tuple[str, str], str]:
-    """Map each gfsm component (plc, "#i") to its dataset CSV column.
+    """Map each (plc, case_var) component to its dataset CSV column.
 
-    The gfsm extractor models each contributing PLC by its LEAD actuator
-    FSM (ONE component per PLC, not per actuator). The data column for a
-    component is that PLC's lead actuator status column, resolved through
-    the dataset column_map. This is the single source of truth for
-    fb_to_col (NOT stl.profiles.state_vars, which is a per-actuator STL
-    list whose length/semantics do not match gfsm components).
+    The actuator is derived directly from the CASE selector (st_gen spec
+    §8.1: state vars are `<ACT>_State`), so resolution is exact per
+    actuator — no "lead actuator per PLC" and no gfsm manifest needed.
+    Column via the existing fallback chain: UPPER → S_+UPPER → lower().
     """
-    plc_to_actuator: dict[str, str] = {}
-    for plc_entry in gfsm_manifest.get("plcs", []):
-        counts = plc_entry.get("counts") or {}
-        if counts.get("function_blocks", 0) > 0:
-            stage2 = plc_entry.get("stage2_fsms") or []
-            if stage2:
-                plc_to_actuator[plc_entry["name"]] = stage2[0]["actuator"]
     col_map = {
         k.upper(): v for k, v in (dataset_column_map or {}).items()
     }
     out: dict[tuple[str, str], str] = {}
     for comp in components:
-        plc = comp[0]
-        act = plc_to_actuator.get(plc, "")
+        plc, case_var = comp
+        act = case_var.removesuffix("_State")
         au = act.upper()
         csv_col = (
             col_map.get(au)
@@ -94,15 +84,15 @@ def resolve_fb_to_col(
         )
         if not csv_col:
             raise InvariantsError(
-                f"cannot resolve dataset column for gfsm component {comp} "
-                f"(plc={plc}, lead actuator={act!r}); check gfsm manifest "
-                f"stage2_fsms and dataset column_map"
+                f"cannot resolve dataset column for gfsm component "
+                f"(plc={plc}, case_var={case_var!r}, "
+                f"actuator={act!r}); check dataset column_map"
             )
         out[comp] = csv_col
     if len(out) != len(components):
         raise InvariantsError(
             f"resolved {len(out)} columns for {len(components)} gfsm "
-            f"components"
+            f"components (duplicate component tuples?)"
         )
     return out
 
@@ -160,7 +150,10 @@ def resolve_fb_to_col_from_paths(
     gfsm_json = json.loads(gfsm_path.read_text())
     components = load_gfsm_components(gfsm_json)
     gfsm_manifest = json.loads(gman_path.read_text())
+    # gfsm_manifest is loaded above for existence/provenance validation
+    # only; per-actuator resolution derives the actuator from case_var.
+    _ = gfsm_manifest
     col_map = (yaml.safe_load(ds_man.read_text()) or {}).get(
         "column_map") or {}
-    fb_to_col = resolve_fb_to_col(components, gfsm_manifest, col_map)
+    fb_to_col = resolve_fb_to_col(components, col_map)
     return fb_to_col, components, gfsm_json
