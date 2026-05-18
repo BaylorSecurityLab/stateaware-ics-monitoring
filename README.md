@@ -65,3 +65,28 @@ runtime detector lands, with no change to fusion/CLI.
 `typing.io` shim — see `INSTALL.md`. BATADAL provenance (it *is* the C-Town
 network) is recorded only in `data/ctown/dataset/dataset_manifest.yaml`; the
 ltown reader self-calibrates tank elevation/level from the zarr archive.
+
+## Stage "invariants" — NiaARM state-aware mining (`invariants-mine`)
+
+Implements Algorithm 1 of the SAIN paper: per composite GFSM state `s`,
+mine numerical association rules with NiaARM from baseline calibration
+traces sliced to `Ds`, filter to confidence ≥ 0.7 and support ≥ 0.1, and
+persist the invariant mapping `Φ(s)`.
+
+```bash
+invariants-mine --topology anytown --gfsm-dir data/generated/anytown/gfsm
+# or every topology that has a <topo>.gfsm.json:
+invariants-mine --all --gfsm-dir data/generated
+```
+
+Writes `data/generated/<topo>/invariants/<topo>_phi.json` +
+`<topo>_invariants_manifest.json` (provenance + sha256 of the upstream
+gfsm and dataset manifests).
+
+The per-PLC data column for each GFSM component is resolved automatically
+from the gfsm manifest's lead actuator (`plcs[].stage2_fsms[0].actuator`)
+through the dataset `column_map` — no manual configuration. The runtime
+monitor (`ics-monitor`) consumes `Φ` and the GFSM JSON, loaded once at
+`fit()` (build-once / reuse-many; staleness-gated by sha256). Fusion
+defaults to the paper's intersection rule `(gfsm OR invariants) AND stl`;
+pass `--fusion or` for the baseline.
