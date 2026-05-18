@@ -38,7 +38,8 @@ def test_worker_returns_serializable_dict(tmp_path):
     assert res["counts"]["function_blocks"] == 1
     assert res["counts"]["states"] == 2
     # The LocalFSM is carried as a plain dict (output.fsm_to_dict shape).
-    assert res["fsm"]["function_blocks"][0]["name"] == "FB"
+    # Identity is the CASE selector (Task 2 contract): name == case_variable.
+    assert res["fsm"]["function_blocks"][0]["name"] == "S"
 
 
 def test_worker_records_error_on_bad_xml(tmp_path):
@@ -108,7 +109,7 @@ def test_driver_writes_all_artifacts(tmp_path: Path):
     assert m["topology"] == "syn"
     assert len(m["plcs"]) == 2
     g = json.loads((out / "syn.gfsm.json").read_text())
-    assert g["initial"] == "PLC1:10|PLC2:30"
+    assert g["initial"] == "PLC1.S:10|PLC2.S:30"
 
 
 def test_driver_missing_source_manifest_raises(tmp_path: Path):
@@ -177,4 +178,4 @@ def test_driver_skips_legitimate_no_fsm_plc(tmp_path: Path):
     g = json.loads((out / "syn.gfsm.json").read_text())
     # GFSM composed from PLC1 only; PLC2 absent from the global tuple.
     assert "PLC2" not in g["initial"]
-    assert g["initial"] == "PLC1:10"
+    assert g["initial"] == "PLC1.S:10"
