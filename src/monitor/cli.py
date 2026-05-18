@@ -1,4 +1,4 @@
-"""CLI entry point for ics-monitor (hybrid Stage 3 STL + GFSM-stub)."""
+"""CLI entry point for ics-monitor (hybrid STL + GFSM + Φ invariants)."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ from .model import MonitorError
 def _build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="ics-monitor",
-        description="Hybrid ICS monitor: STL (Stage 3) OR GFSM (Stage 4 stub).")
+        description="Hybrid ICS monitor: STL + GFSM + Φ invariants (paper fusion).")
     p.add_argument("--data-root", type=Path, default=Path("data"))
     grp = p.add_mutually_exclusive_group(required=True)
     grp.add_argument("--topology", choices=sorted(PROFILES))
@@ -23,6 +23,9 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("--out", type=Path, default=None,
                    help="output dir (default: <data-root>/generated/<topo>/monitor)")
     p.add_argument("--jobs", type=int, default=None)
+    p.add_argument("--fusion", choices=["intersection", "or"],
+                   default="intersection",
+                   help="hybrid fusion rule (paper default: intersection)")
     p.add_argument("-v", "--verbose", action="store_true")
     return p
 
@@ -36,7 +39,8 @@ def main(argv: list[str] | None = None) -> int:
         try:
             manifest = run_topology(
                 topology=topology, data_root=args.data_root,
-                out_dir=args.out if not args.all else None, jobs=args.jobs)
+                out_dir=args.out if not args.all else None,
+                fusion=args.fusion, jobs=args.jobs)
         except MonitorError as exc:
             print(f"error: {exc}", file=sys.stderr)
             if not args.all:
