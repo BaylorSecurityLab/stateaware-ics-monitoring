@@ -86,6 +86,9 @@ def run_topology(*, topology: str, data_root: Path, out_dir: Path | None,
         scen.append({
             "name": sc.name, "n": int(len(y)),
             "attack_rows": int(y.sum()),
+            # STL is the only detector with a continuous score; use it as
+            # the threshold-free ranking signal even when the fused
+            # decision came from gfsm/invariants.
             "metrics": detection_metrics(
                 y, fused,
                 s.scores if s.scores is not None else fused.astype(float)),
@@ -99,6 +102,11 @@ def run_topology(*, topology: str, data_root: Path, out_dir: Path | None,
                          "y_pred": int(fused[i])})
 
     pd.DataFrame(rows).to_csv(out / "predictions.csv", index=False)
+    # all_ok is structurally always True here: the three detectors load
+    # their artifacts and raise MonitorError at fit() BEFORE this loop, and
+    # a predict()-time exception is a real bug that must propagate (not be
+    # swallowed into all_ok=False). Unlike stl/gfsm drivers there is no
+    # partial-per-scenario-failure path, so this is intentionally a literal.
     manifest = {
         "schema": "monitor/v1", "topology": topology,
         "detectors": ["stl", "gfsm", "invariants"], "fusion": fusion,
