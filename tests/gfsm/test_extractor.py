@@ -137,8 +137,6 @@ def test_empty_block_dropped():
 
 
 def test_extract_one_fb_per_case_named_by_case_var():
-    from gfsm.xml_parser import XmlParser
-    from gfsm.extractor import FsmExtractor
     xml = """<iec-source>
       <program-declaration>
         <program-type-name>PLC1</program-type-name>

@@ -1,4 +1,9 @@
-"""Parsed XML -> LocalFSM. Faithful port of src/fsm/extractor.rs."""
+"""Parsed XML -> LocalFSM. Faithful port of src/fsm/extractor.rs.
+
+Note: per-CASE iteration (one FunctionBlock per CASE variable per PLC) is an
+intentional paper-faithful deviation (Def 1/2) from the Rust reference's
+lead-actuator-only behavior for multi-actuator PLCs.
+"""
 
 from __future__ import annotations
 

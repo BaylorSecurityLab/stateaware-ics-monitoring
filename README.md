@@ -2,11 +2,13 @@
 
 ## Stage 4 — GFSM (`gfsm-build`)
 
-Stage 4 ("GFSM builder") is a faithful Python port of the Rust
-`fsm-extractor` (`github.com/LaBackDoor/fsm-extractor`, pinned commit
-`14950d5`) plus a new synchronous-product composer. It reads Stage 2's
-`<plc>.ast.xml` files, extracts each PLC's local FSM, and composes them into
-one global FSM per topology.
+Stage 4 ("GFSM builder") implements the paper-faithful FSM extraction
+algorithm (Def 1/2: one FunctionBlock per CASE variable per PLC) plus a new
+synchronous-product composer. It is derived from the Rust `fsm-extractor`
+(`github.com/LaBackDoor/fsm-extractor`, pinned commit `14950d5`) but
+intentionally supersedes its lead-actuator-only behavior for multi-actuator
+PLCs. It reads Stage 2's `<plc>.ast.xml` files, extracts each PLC's local
+FSM, and composes them into one global FSM per topology.
 
 ```bash
 gfsm-build --topology anytown
@@ -24,8 +26,9 @@ Flags: `--max-states N` (hard cap on global states; clean error on
 overflow), `--out-dir PATH`, `--jobs N` (process-pool fan-out across PLCs;
 `--jobs 1` is sequential; output is byte-identical regardless of `N`).
 
-The port is pinned by port-fidelity golden tests that diff Python JSON/DOT
-against the Rust binary; behavioral divergence fails CI.
+Correctness is enforced by the structural golden tests in
+`tests/gfsm/test_golden_*.py`; they verify per-CASE FSM structure and
+composition against known-good fixtures.
 
 ## Stage 2 — ST analysis (`st-analyze`)
 
