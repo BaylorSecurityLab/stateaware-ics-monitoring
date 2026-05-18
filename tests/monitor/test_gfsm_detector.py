@@ -127,3 +127,46 @@ def test_unknown_then_recovery_is_conservatively_flagged(tmp_path: Path):
     # row2: 1 known but prev="PLC1:2" (unknown) so ("PLC1:2","PLC1:1")
     #       not in allowed -> conservatively flagged 1
     assert out.flags.tolist() == [0, 1, 1]
+
+
+def test_real_gfsm_from_to_keys_are_honored(tmp_path: Path):
+    # Real global gfsm json uses "from"/"to" (NOT from_state/to_state).
+    gfsm_dir = tmp_path / "gfsm"
+    gfsm_dir.mkdir()
+    (gfsm_dir / "rk.gfsm.json").write_text(json.dumps({
+        "initial": "PLC1:0",
+        "states": {"PLC1:0": ["0"], "PLC1:1": ["1"]},
+        "transitions": [
+            {"id": "t0", "from": "PLC1:0", "to": "PLC1:1",
+             "condition": "", "raw_expression": ""},
+        ],
+        "metadata": {"source_file": "x", "extraction_date": "",
+                     "total_states": 2, "total_transitions": 1},
+        "max_states": 100,
+    }))
+    (gfsm_dir / "rk_gfsm_manifest.json").write_text(json.dumps({"x": 1}))
+    det = GfsmAnomalyDetector(
+        gfsm_dir=gfsm_dir, topology="rk",
+        fb_to_col={("PLC1", "#0"): "p1"}).fit([])
+    # 0->1 legal (via real "from"/"to"), 1->0 NOT a transition -> flag row2
+    out = det.predict(pd.DataFrame({"p1": [0, 1, 0]}))
+    assert out.flags.tolist() == [0, 0, 1]
+
+
+def test_transition_missing_keys_raises_monitor_error(tmp_path: Path):
+    from monitor.model import MonitorError
+    gfsm_dir = tmp_path / "gfsm"
+    gfsm_dir.mkdir()
+    (gfsm_dir / "bad.gfsm.json").write_text(json.dumps({
+        "initial": "PLC1:0", "states": {"PLC1:0": ["0"]},
+        "transitions": [{"id": "t0", "condition": ""}],  # no from/to
+        "metadata": {"source_file": "x", "extraction_date": "",
+                     "total_states": 1, "total_transitions": 1},
+        "max_states": 100,
+    }))
+    (gfsm_dir / "bad_gfsm_manifest.json").write_text(json.dumps({"x": 1}))
+    det = GfsmAnomalyDetector(
+        gfsm_dir=gfsm_dir, topology="bad",
+        fb_to_col={("PLC1", "#0"): "p1"})
+    with pytest.raises(MonitorError, match="missing from/to keys"):
+        det.fit([])

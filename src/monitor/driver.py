@@ -16,7 +16,7 @@ import pandas as pd
 from dataio.loader import load_topology
 from dataio.model import DataIoError
 from invariants.model import InvariantsError
-from invariants.state_label import load_gfsm_components, resolve_fb_to_col
+from invariants.state_label import resolve_fb_to_col_from_paths
 from stl.metrics import detection_metrics
 from stl.profiles import get_profile
 
@@ -42,22 +42,9 @@ def run_topology(*, topology: str, data_root: Path, out_dir: Path | None,
 
     gfsm_dir = Path(data_root) / "generated" / topology / "gfsm"
     inv_dir = Path(data_root) / "generated" / topology / "invariants"
-    gfsm_path = gfsm_dir / f"{topology}.gfsm.json"
-    if not gfsm_path.exists():
-        raise MonitorError(
-            f"gfsm json not found: {gfsm_path} (run gfsm-build)")
-    gman_path = gfsm_dir / f"{topology}_gfsm_manifest.json"
-    if not gman_path.exists():
-        raise MonitorError(f"gfsm manifest not found: {gman_path}")
-    ds_man = Path(data_root) / topology / "dataset" / "dataset_manifest.yaml"
-    if not ds_man.exists():
-        raise MonitorError(f"dataset manifest not found: {ds_man}")
-    import yaml
-    components = load_gfsm_components(json.loads(gfsm_path.read_text()))
-    gfsm_manifest = json.loads(gman_path.read_text())
-    col_map = (yaml.safe_load(ds_man.read_text()) or {}).get("column_map") or {}
     try:
-        fb_to_col = resolve_fb_to_col(components, gfsm_manifest, col_map)
+        fb_to_col, components, _gfsm = resolve_fb_to_col_from_paths(
+            gfsm_dir, topology, Path(data_root))
     except InvariantsError as exc:
         raise MonitorError(str(exc)) from exc
 

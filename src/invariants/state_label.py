@@ -6,9 +6,12 @@ label produced here is a valid key in the GFSM JSON's `states` map.
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
 from typing import Any
 
 import pandas as pd
+import yaml
 
 from .model import InvariantsError
 
@@ -126,3 +129,32 @@ def label_frame(
         ),
         axis=1,
     )
+
+
+def resolve_fb_to_col_from_paths(
+    gfsm_dir: Path,
+    topology: str,
+    data_root: Path,
+) -> tuple[dict[tuple[str, str], str], list[tuple[str, str]], dict[str, Any]]:
+    """Read the gfsm json, gfsm manifest, and dataset column_map from disk
+    and resolve fb_to_col. Returns (fb_to_col, components, gfsm_json).
+
+    Single shared file-resolution path for cli.py, monitor/driver.py, and
+    the golden tests — raises InvariantsError on any missing input.
+    """
+    gfsm_path = Path(gfsm_dir) / f"{topology}.gfsm.json"
+    if not gfsm_path.exists():
+        raise InvariantsError(f"gfsm json not found: {gfsm_path}")
+    gman_path = Path(gfsm_dir) / f"{topology}_gfsm_manifest.json"
+    if not gman_path.exists():
+        raise InvariantsError(f"gfsm manifest not found: {gman_path}")
+    ds_man = Path(data_root) / topology / "dataset" / "dataset_manifest.yaml"
+    if not ds_man.exists():
+        raise InvariantsError(f"dataset manifest not found: {ds_man}")
+    gfsm_json = json.loads(gfsm_path.read_text())
+    components = load_gfsm_components(gfsm_json)
+    gfsm_manifest = json.loads(gman_path.read_text())
+    col_map = (yaml.safe_load(ds_man.read_text()) or {}).get(
+        "column_map") or {}
+    fb_to_col = resolve_fb_to_col(components, gfsm_manifest, col_map)
+    return fb_to_col, components, gfsm_json

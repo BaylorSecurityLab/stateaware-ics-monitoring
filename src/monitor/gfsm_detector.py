@@ -47,8 +47,12 @@ class GfsmAnomalyDetector:
         self._components = load_gfsm_components(gfsm)
         self._known_states = set((gfsm.get("states") or {}).keys())
         for t in gfsm.get("transitions") or []:
-            self._allowed.add((t.get("from_state") or t["from"],
-                               t.get("to_state") or t["to"]))
+            frm = t.get("from_state", t.get("from"))
+            to = t.get("to_state", t.get("to"))
+            if frm is None or to is None:
+                raise MonitorError(
+                    f"gfsm transition missing from/to keys: {t!r}")
+            self._allowed.add((frm, to))
         return self
 
     def predict(self, frame: pd.DataFrame) -> StepFlags:

@@ -8,7 +8,7 @@ import pytest
 import yaml
 
 from invariants.driver import mine_topology
-from invariants.state_label import label_frame, load_gfsm_components, resolve_fb_to_col
+from invariants.state_label import label_frame
 
 REPO = Path(__file__).resolve().parents[2]
 DATA = REPO / "data"
@@ -24,14 +24,9 @@ skip_no_data = pytest.mark.skipif(
 
 
 def _fb_to_col():
-    import yaml
-    from invariants.state_label import resolve_fb_to_col
-    gfsm = json.loads(GFSM_JSON.read_text())
-    components = load_gfsm_components(gfsm)
-    gfsm_man = json.loads(GFSM_MANIFEST.read_text())
-    col_map = (yaml.safe_load(DS_MANIFEST.read_text()) or {}).get(
-        "column_map") or {}
-    fb_to_col = resolve_fb_to_col(components, gfsm_man, col_map)
+    from invariants.state_label import resolve_fb_to_col_from_paths
+    fb_to_col, components, gfsm = resolve_fb_to_col_from_paths(
+        GFSM_DIR, TOPOLOGY, DATA)
     return fb_to_col, components, gfsm
 
 
