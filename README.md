@@ -86,9 +86,10 @@ Writes `data/generated/<topo>/invariants/<topo>_phi.json` +
 `<topo>_invariants_manifest.json` (provenance + sha256 of the upstream
 gfsm and dataset manifests).
 
-The per-PLC data column for each GFSM component is resolved automatically
-from the gfsm manifest's lead actuator (`plcs[].stage2_fsms[0].actuator`)
-through the dataset `column_map` — no manual configuration. The runtime
+The data column for each GFSM component (one per actuator CASE) is
+resolved automatically per-actuator from the CASE selector
+(`<ACT>_State` → actuator `ACT`) through the dataset `column_map`
+(`ACT` → `S_`+`ACT` → lowercase fallback) — no manual configuration. The runtime
 monitor (`ics-monitor`) consumes `Φ` and the GFSM JSON, loaded once at
 `fit()` (build-once / reuse-many; staleness-gated by sha256). Fusion
 defaults to the paper's intersection rule `(gfsm OR invariants) AND stl`;
