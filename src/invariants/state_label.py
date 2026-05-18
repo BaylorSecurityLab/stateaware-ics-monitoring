@@ -50,6 +50,55 @@ def load_gfsm_components(gfsm_dict: dict[str, Any]) -> list[tuple[str, str]]:
     return components
 
 
+def resolve_fb_to_col(
+    components: list[tuple[str, str]],
+    gfsm_manifest: dict[str, Any],
+    dataset_column_map: dict[str, str],
+) -> dict[tuple[str, str], str]:
+    """Map each gfsm component (plc, "#i") to its dataset CSV column.
+
+    The gfsm extractor models each contributing PLC by its LEAD actuator
+    FSM (ONE component per PLC, not per actuator). The data column for a
+    component is that PLC's lead actuator status column, resolved through
+    the dataset column_map. This is the single source of truth for
+    fb_to_col (NOT stl.profiles.state_vars, which is a per-actuator STL
+    list whose length/semantics do not match gfsm components).
+    """
+    plc_to_actuator: dict[str, str] = {}
+    for plc_entry in gfsm_manifest.get("plcs", []):
+        counts = plc_entry.get("counts") or {}
+        if counts.get("function_blocks", 0) > 0:
+            stage2 = plc_entry.get("stage2_fsms") or []
+            if stage2:
+                plc_to_actuator[plc_entry["name"]] = stage2[0]["actuator"]
+    col_map = {
+        k.upper(): v for k, v in (dataset_column_map or {}).items()
+    }
+    out: dict[tuple[str, str], str] = {}
+    for comp in components:
+        plc = comp[0]
+        act = plc_to_actuator.get(plc, "")
+        au = act.upper()
+        csv_col = (
+            col_map.get(au)
+            or col_map.get("S_" + au)
+            or (au.lower() if au else "")
+        )
+        if not csv_col:
+            raise InvariantsError(
+                f"cannot resolve dataset column for gfsm component {comp} "
+                f"(plc={plc}, lead actuator={act!r}); check gfsm manifest "
+                f"stage2_fsms and dataset column_map"
+            )
+        out[comp] = csv_col
+    if len(out) != len(components):
+        raise InvariantsError(
+            f"resolved {len(out)} columns for {len(components)} gfsm "
+            f"components"
+        )
+    return out
+
+
 def label_frame(
     df: pd.DataFrame,
     components: list[tuple[str, str]],

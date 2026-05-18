@@ -59,3 +59,39 @@ def test_load_components_pins_positional_placeholders():
     sample = {"states": {"PLC1:0|PLC1:1": ["0", "1"]}}
     comps = load_gfsm_components(sample)
     assert [c[1] for c in comps] == ["#0", "#1"]
+
+
+def test_resolve_fb_to_col_direct_and_s_prefix_and_lower():
+    from invariants.state_label import resolve_fb_to_col
+    comps = [("PLC1", "#0"), ("PLC3", "#1")]
+    gman = {"plcs": [
+        {"name": "PLC1", "counts": {"function_blocks": 1},
+         "stage2_fsms": [{"actuator": "PU1"}]},
+        {"name": "PLC3", "counts": {"function_blocks": 1},
+         "stage2_fsms": [{"actuator": "P78"}]},
+        {"name": "PLC9", "counts": {"function_blocks": 0},
+         "stage2_fsms": []},
+    ]}
+    colmap = {"P78": "p78", "S_PU1": "s_pu1"}  # PLC1→PU1→S_PU1→s_pu1; PLC3→P78→p78
+    m = resolve_fb_to_col(comps, gman, colmap)
+    assert m == {("PLC1", "#0"): "s_pu1", ("PLC3", "#1"): "p78"}
+
+
+def test_resolve_fb_to_col_lowercase_fallback():
+    from invariants.state_label import resolve_fb_to_col
+    comps = [("PLC1", "#0")]
+    gman = {"plcs": [{"name": "PLC1", "counts": {"function_blocks": 1},
+                      "stage2_fsms": [{"actuator": "PUMP_1"}]}]}
+    m = resolve_fb_to_col(comps, gman, {})  # no column_map → PUMP_1→pump_1
+    assert m == {("PLC1", "#0"): "pump_1"}
+
+
+def test_resolve_fb_to_col_unresolvable_raises():
+    import pytest
+    from invariants.model import InvariantsError
+    from invariants.state_label import resolve_fb_to_col
+    comps = [("PLC1", "#0")]
+    gman = {"plcs": [{"name": "PLC1", "counts": {"function_blocks": 0},
+                      "stage2_fsms": []}]}  # no lead actuator → unresolvable
+    with pytest.raises(InvariantsError, match="cannot resolve dataset column"):
+        resolve_fb_to_col(comps, gman, {})

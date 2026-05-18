@@ -47,7 +47,8 @@ class GfsmAnomalyDetector:
         self._components = load_gfsm_components(gfsm)
         self._known_states = set((gfsm.get("states") or {}).keys())
         for t in gfsm.get("transitions") or []:
-            self._allowed.add((t["from_state"], t["to_state"]))
+            self._allowed.add((t.get("from_state") or t["from"],
+                               t.get("to_state") or t["to"]))
         return self
 
     def predict(self, frame: pd.DataFrame) -> StepFlags:

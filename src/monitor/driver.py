@@ -15,7 +15,8 @@ import pandas as pd
 
 from dataio.loader import load_topology
 from dataio.model import DataIoError
-from invariants.state_label import load_gfsm_components
+from invariants.model import InvariantsError
+from invariants.state_label import load_gfsm_components, resolve_fb_to_col
 from stl.metrics import detection_metrics
 from stl.profiles import get_profile
 
@@ -24,23 +25,6 @@ from .gfsm_detector import GfsmAnomalyDetector
 from .invariants_detector import InvariantsAnomalyDetector
 from .model import MonitorError
 from .stl_detector import StlAnomalyDetector
-
-
-def _profile_fb_to_col(profile, components: list[tuple[str, str]]
-                       ) -> dict[tuple[str, str], str]:
-    """Pair gfsm-ordered components with profile.state_vars positionally.
-
-    ORDERING CONTRACT: profile.state_vars must be declared in the same
-    (plc, fb.name) ascending order gfsm.compose uses. Count mismatch is a
-    hard config error.
-    """
-    sv = [str(v) for v in profile.state_vars]
-    if len(sv) != len(components):
-        raise MonitorError(
-            f"{profile.name}: profile state_vars ({len(sv)}) != gfsm "
-            f"components ({len(components)})"
-        )
-    return {c: col for c, col in zip(components, sv)}
 
 
 def run_topology(*, topology: str, data_root: Path, out_dir: Path | None,
@@ -62,8 +46,20 @@ def run_topology(*, topology: str, data_root: Path, out_dir: Path | None,
     if not gfsm_path.exists():
         raise MonitorError(
             f"gfsm json not found: {gfsm_path} (run gfsm-build)")
+    gman_path = gfsm_dir / f"{topology}_gfsm_manifest.json"
+    if not gman_path.exists():
+        raise MonitorError(f"gfsm manifest not found: {gman_path}")
+    ds_man = Path(data_root) / topology / "dataset" / "dataset_manifest.yaml"
+    if not ds_man.exists():
+        raise MonitorError(f"dataset manifest not found: {ds_man}")
+    import yaml
     components = load_gfsm_components(json.loads(gfsm_path.read_text()))
-    fb_to_col = _profile_fb_to_col(profile, components)
+    gfsm_manifest = json.loads(gman_path.read_text())
+    col_map = (yaml.safe_load(ds_man.read_text()) or {}).get("column_map") or {}
+    try:
+        fb_to_col = resolve_fb_to_col(components, gfsm_manifest, col_map)
+    except InvariantsError as exc:
+        raise MonitorError(str(exc)) from exc
 
     stl_det = StlAnomalyDetector(profile, jobs=jobs).fit(
         dataset.calibration_frames)

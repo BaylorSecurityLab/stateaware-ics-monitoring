@@ -8,8 +8,7 @@ import pytest
 import yaml
 
 from invariants.driver import mine_topology
-from invariants.state_label import label_frame, load_gfsm_components
-from stl.profiles import get_profile  # noqa: F401 — kept for symmetry
+from invariants.state_label import label_frame, load_gfsm_components, resolve_fb_to_col
 
 REPO = Path(__file__).resolve().parents[2]
 DATA = REPO / "data"
@@ -25,57 +24,14 @@ skip_no_data = pytest.mark.skipif(
 
 
 def _fb_to_col():
-    """Build fb_to_col from the gfsm manifest's lead actuator per PLC.
-
-    The GFSM is organised one component per contributing PLC (one joint FB
-    per PLC). The correct dataset column for each GFSM component is derived
-    from that PLC's FSM case variable (= the lead actuator's state column),
-    not from profile.state_vars (which lists individual actuators). We read
-    the gfsm_manifest's plcs[].stage2_fsms[0].actuator, lowercase it, then
-    resolve it through the dataset column_map to obtain the CSV column name.
-
-    This is the ORDERING CONTRACT the label-overlap test verifies: components
-    are sorted (plc, fb.name) ascending by gfsm.compose._ordered_components;
-    this function must produce a mapping where the i-th component corresponds
-    to the correct column so label_frame produces valid gfsm state keys.
-    """
+    import yaml
+    from invariants.state_label import resolve_fb_to_col
     gfsm = json.loads(GFSM_JSON.read_text())
     components = load_gfsm_components(gfsm)
     gfsm_man = json.loads(GFSM_MANIFEST.read_text())
-
-    # Build plc_name → lead_actuator from gfsm manifest (PLCs with FBs only)
-    plc_to_actuator: dict[str, str] = {}
-    for plc_entry in gfsm_man.get("plcs", []):
-        if plc_entry.get("counts", {}).get("function_blocks", 0) > 0:
-            stage2 = plc_entry.get("stage2_fsms", [])
-            if stage2:
-                plc_to_actuator[plc_entry["name"]] = stage2[0]["actuator"]
-
-    # Build inverted column_map: UPPERCASE_ACTUATOR → lowercase_csv_col
-    ds_cfg = yaml.safe_load(DS_MANIFEST.read_text()) or {}
-    col_map: dict[str, str] = {
-        k.upper(): v for k, v in (ds_cfg.get("column_map") or {}).items()
-    }
-
-    fb_to_col: dict[tuple[str, str], str] = {}
-    for comp in components:
-        plc = comp[0]
-        actuator_upper = plc_to_actuator.get(plc, "").upper()
-        # Try direct column_map lookup, then S_<ACT> status-column prefix
-        # (ctown: PU1 → S_PU1 → s_pu1, V2 → S_V2 → s_v2), then lowercase
-        # fallback (anytown: P78 → p78, ltown: PUMP_1 → pump_1).
-        csv_col = (col_map.get(actuator_upper)
-                   or col_map.get("S_" + actuator_upper)
-                   or actuator_upper.lower())
-        assert csv_col, (
-            f"{TOPOLOGY}: cannot resolve CSV column for component {comp} "
-            f"(plc={plc}, actuator={plc_to_actuator.get(plc)!r}) — "
-            f"REAL config finding")
-        fb_to_col[comp] = csv_col
-
-    assert len(fb_to_col) == len(components), (
-        f"{TOPOLOGY}: fb_to_col built {len(fb_to_col)} entries but gfsm has "
-        f"{len(components)} components — REAL config finding")
+    col_map = (yaml.safe_load(DS_MANIFEST.read_text()) or {}).get(
+        "column_map") or {}
+    fb_to_col = resolve_fb_to_col(components, gfsm_man, col_map)
     return fb_to_col, components, gfsm
 
 

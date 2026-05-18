@@ -2,10 +2,10 @@
 
 from .driver import mine_topology
 from .model import Atom, InvariantsError, MinedRule
-from .state_label import encode, label_frame, load_gfsm_components
+from .state_label import encode, label_frame, load_gfsm_components, resolve_fb_to_col
 
 __all__ = [
     "mine_topology",
     "Atom", "InvariantsError", "MinedRule",
-    "encode", "label_frame", "load_gfsm_components",
+    "encode", "label_frame", "load_gfsm_components", "resolve_fb_to_col",
 ]

@@ -7,12 +7,9 @@ import json
 import sys
 from pathlib import Path
 
-from stl.model import StlError
-from stl.profiles import get_profile
-
 from .driver import mine_topology
 from .model import InvariantsError
-from .state_label import load_gfsm_components
+from .state_label import load_gfsm_components, resolve_fb_to_col
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -40,27 +37,22 @@ def _build_parser() -> argparse.ArgumentParser:
 
 
 def _resolve_fb_to_col(
-    topo: str, gfsm_dir: Path
+    topo: str, gfsm_dir: Path, data_root: Path
 ) -> dict[tuple[str, str], str]:
     gfsm_path = gfsm_dir / f"{topo}.gfsm.json"
     if not gfsm_path.exists():
         raise InvariantsError(f"gfsm json not found: {gfsm_path}")
+    gman_path = gfsm_dir / f"{topo}_gfsm_manifest.json"
+    if not gman_path.exists():
+        raise InvariantsError(f"gfsm manifest not found: {gman_path}")
+    ds_man = Path(data_root) / topo / "dataset" / "dataset_manifest.yaml"
+    if not ds_man.exists():
+        raise InvariantsError(f"dataset manifest not found: {ds_man}")
+    import yaml
     components = load_gfsm_components(json.loads(gfsm_path.read_text()))
-    profile = get_profile(topo)
-    state_vars = [str(v) for v in profile.state_vars]
-    if len(state_vars) != len(components):
-        raise InvariantsError(
-            f"{topo}: profile state_vars ({len(state_vars)}) does not "
-            f"match gfsm components ({len(components)})"
-        )
-    # ORDERING CONTRACT (load-bearing): components are gfsm-ordered by
-    # (plc, fb.name) ascending (see gfsm.compose._ordered_components);
-    # profile.state_vars MUST be declared in that same ascending order so
-    # this positional zip pairs the right column to each component. The
-    # count mismatch above catches length drift; a same-length REORDER is
-    # NOT caught here — it is verified end-to-end by the ctown golden test
-    # (every label_frame output must be a valid gfsm `states` key).
-    return {c: col for c, col in zip(components, state_vars)}
+    gfsm_manifest = json.loads(gman_path.read_text())
+    col_map = (yaml.safe_load(ds_man.read_text()) or {}).get("column_map") or {}
+    return resolve_fb_to_col(components, gfsm_manifest, col_map)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -87,7 +79,7 @@ def main(argv: list[str] | None = None) -> int:
         out = args.out if args.out else (
             args.data_root / "generated" / topo / "invariants")
         try:
-            fb_to_col = _resolve_fb_to_col(topo, args.gfsm_dir)
+            fb_to_col = _resolve_fb_to_col(topo, args.gfsm_dir, args.data_root)
             manifest = mine_topology(
                 topology=topo, data_root=args.data_root,
                 gfsm_dir=args.gfsm_dir, out_dir=out,
@@ -96,7 +88,7 @@ def main(argv: list[str] | None = None) -> int:
                 max_evals=args.max_evals, seed=args.seed,
                 keep_going=not args.strict,
             )
-        except (InvariantsError, StlError) as exc:
+        except InvariantsError as exc:
             print(f"error: {exc}", file=sys.stderr)
             if not args.all:
                 return 2
