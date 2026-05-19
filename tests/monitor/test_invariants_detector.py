@@ -152,3 +152,52 @@ def test_malformed_phi_in_atom_raises(tmp_path: Path):
     )
     with pytest.raises(MonitorError, match="malformed"):
         det.fit([])
+
+
+def test_legacy_phi_without_threshold_defaults_k1(tmp_path):
+    sha = hashlib.sha256("{}".encode("utf-8")).hexdigest()
+    inv = _phi(tmp_path, gfsm_sha=sha)
+    gd = _gfsm_dir(tmp_path, sha_text="{}")
+    det = InvariantsAnomalyDetector(
+        invariants_dir=inv, gfsm_dir=gd, data_root=tmp_path,
+        topology="synth", components=[("PLC1", "S")],
+        fb_to_col={("PLC1", "S"): "p1"},
+    ).fit([])
+    assert det._k == 1
+    out = det.predict(pd.DataFrame({"p1": [0], "t1": [9.0]}))
+    assert out.flags[0] == 1
+
+
+def test_threshold_k_requires_enough_violations(tmp_path):
+    sha = hashlib.sha256("{}".encode("utf-8")).hexdigest()
+    inv = _phi(tmp_path, gfsm_sha=sha)
+    p = inv / "synth_phi.json"
+    d = json.loads(p.read_text())
+    d["violation_threshold"] = 2
+    p.write_text(json.dumps(d))
+    gd = _gfsm_dir(tmp_path, sha_text="{}")
+    det = InvariantsAnomalyDetector(
+        invariants_dir=inv, gfsm_dir=gd, data_root=tmp_path,
+        topology="synth", components=[("PLC1", "S")],
+        fb_to_col={("PLC1", "S"): "p1"},
+    ).fit([])
+    assert det._k == 2
+    out = det.predict(pd.DataFrame({"p1": [0], "t1": [9.0]}))
+    assert out.flags[0] == 0
+
+
+def test_state_absent_flags_regardless_of_k(tmp_path):
+    sha = hashlib.sha256("{}".encode("utf-8")).hexdigest()
+    inv = _phi(tmp_path, gfsm_sha=sha)
+    p = inv / "synth_phi.json"
+    d = json.loads(p.read_text())
+    d["violation_threshold"] = 99
+    p.write_text(json.dumps(d))
+    gd = _gfsm_dir(tmp_path, sha_text="{}")
+    det = InvariantsAnomalyDetector(
+        invariants_dir=inv, gfsm_dir=gd, data_root=tmp_path,
+        topology="synth", components=[("PLC1", "S")],
+        fb_to_col={("PLC1", "S"): "p1"},
+    ).fit([])
+    out = det.predict(pd.DataFrame({"p1": [7], "t1": [1.2]}))
+    assert out.flags[0] == 1

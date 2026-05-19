@@ -1,9 +1,13 @@
 """Φ-bound anomaly detector.
 
-Loads the persisted Φ JSON (built by `invariants-mine`) and flags rows
-whose composite-state is absent from Φ, or whose antecedent fires but
-consequent fails. Build-once / reuse-many: `fit` deserializes Φ and
-verifies it is not stale vs the current gfsm manifest (sha256).
+Loads the persisted Φ JSON (built by `invariants-mine`) and flags a row
+when its composite-state is absent from Φ, OR when the number of violated
+Φ rules for that state (antecedent holds but consequent fails) is at least
+K. K is read from the Φ field `violation_threshold` (auto-calibrated by
+`invariants-mine` from a clean false-positive budget); a legacy Φ without
+the field defaults to K=1, i.e. flag on any single violation. Build-once /
+reuse-many: `fit` deserializes Φ and verifies it is not stale vs the
+current gfsm + dataset manifests (sha256).
 """
 
 from __future__ import annotations
@@ -46,6 +50,7 @@ class InvariantsAnomalyDetector:
         self._components = components
         self._fb_to_col = fb_to_col
         self._phi: dict[str, list[dict[str, Any]]] = {}
+        self._k: int = 1
 
     def fit(self, calibration_frames: list[pd.DataFrame]
             ) -> "InvariantsAnomalyDetector":
@@ -76,6 +81,7 @@ class InvariantsAnomalyDetector:
                     "stale Φ artifact (dataset manifest sha mismatch); "
                     "re-run invariants-mine"
                 )
+        self._k = max(1, int(data.get("violation_threshold", 1)))
         self._phi = {
             s: (e.get("rules") or [])
             for s, e in (data.get("states") or {}).items()
@@ -105,10 +111,10 @@ class InvariantsAnomalyDetector:
             if rules is None:
                 flags[i] = 1  # composite state absent from Φ
                 continue
-            row = frame.iloc[i]
-            for r in rules:
-                if _all_hold(row, r.get("antecedent", [])):
-                    if not _all_hold(row, r.get("consequent", [])):
-                        flags[i] = 1
-                        break
+            if not rules:
+                continue
+            # Full count needed: cannot short-circuit on first violation
+            # when K>1 (legacy K=1 still flags on the first).
+            if _row_violation_count(frame.iloc[i], rules) >= self._k:
+                flags[i] = 1
         return StepFlags(flags=flags, scores=flags.astype(float))
