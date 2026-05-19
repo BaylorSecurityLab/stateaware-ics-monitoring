@@ -107,3 +107,106 @@ def fit_thresholds(df: pd.DataFrame, *, actuator: str,
         "off_level": off_level if off_level is not None else on_level,
         "sensor_min": lo, "sensor_max": hi,
     }
+
+
+def emit_inp(fits: list[dict]) -> str:
+    tanks = sorted({f["sensor"] for f in fits if "_lt_" in f["sensor"]})
+    sens = sorted({f["sensor"] for f in fits})
+    juncs = sorted(set(sens) - set(tanks))
+    pumps = sorted(f["actuator"] for f in fits if "_p_" in f["actuator"])
+    valves = sorted(f["actuator"] for f in fits
+                    if "_mv_" in f["actuator"] or "_sv_" in f["actuator"])
+    L = ["[TITLE]", "Faithful WADI (generated; iTrust tags; empirical CONTROLS)", ""]
+    L += ["[JUNCTIONS]", ";ID\tElev\tDemand"]
+    L += [f" {j}\t0\t0" for j in (juncs or ["j_dummy"])]
+    L += ["", "[RESERVOIRS]", ";ID\tHead", " r_src\t100", ""]
+    L += ["[TANKS]", ";ID\tElev\tInit\tMin\tMax\tDiam\tMinVol"]
+    L += [f" {t}\t0\t0.5\t0\t1\t10\t0" for t in tanks]
+    L += ["", "[PIPES]", ";ID\tNode1\tNode2\tLength\tDiam\tRough"]
+    prev = "r_src"
+    nodes = (tanks + juncs) or ["j_dummy"]
+    for i, n in enumerate(nodes):
+        L.append(f" pipe_{i}\t{prev}\t{n}\t100\t100\t100")
+        prev = n
+    L += ["", "[PUMPS]", ";ID\tNode1\tNode2\tParams"]
+    L += [f" {p}\tr_src\t{nodes[0]}\tHEAD c_pump" for p in pumps]
+    L += ["", "[VALVES]", ";ID\tNode1\tNode2\tDiam\tType\tSetting\tMinorLoss"]
+    L += [f" {v}\tr_src\t{nodes[0]}\t100\tTCV\t0\t0" for v in valves]
+    L += ["", "[CONTROLS]"]
+    for f in fits:
+        a, s = f["actuator"], f["sensor"]
+        on, off = f["on_level"], f["off_level"]
+        kind = "PUMP" if "_p_" in a else "VALVE"
+        L.append(f" LINK {a} OPEN IF NODE {s} BELOW {on:.6f}")
+        L.append(f" LINK {a} CLOSED IF NODE {s} ABOVE {off:.6f}")
+        _ = kind
+    L += ["", "[PATTERNS]", "", "[CURVES]", ";ID\tX\tY", " c_pump\t1\t50", ""]
+    L += ["[RULES]", "", "[COORDINATES]", ";Node\tX\tY"]
+    for i, n in enumerate(nodes + ["r_src"]):
+        L.append(f" {n}\t{i}\t0")
+    L += ["", "[OPTIONS]", " UNITS\tLPS", " HEADLOSS\tH-W", "", "[END]", ""]
+    return "\n".join(L)
+
+
+def emit_plcs(fits: list[dict]) -> list[dict]:
+    by: dict[str, dict] = {}
+    for f in fits:
+        p = by.setdefault(f["plc"], {"name": f["plc"],
+                                     "sensors": set(), "actuators": set()})
+        p["sensors"].add(f["sensor"])
+        p["actuators"].add(f["actuator"])
+    out = []
+    for name in sorted(by):
+        p = by[name]
+        out.append({"name": name,
+                    "sensors": sorted(p["sensors"]),
+                    "actuators": sorted(p["actuators"])})
+    return out
+
+
+def build(raw_normal: Path = RAW_NORMAL) -> tuple[str, list[dict], list[dict]]:
+    df = pd.read_csv(raw_normal, low_memory=False)
+    df = df.rename(columns={c: _canon(c) for c in df.columns})
+    actuators, _sensors = classify_columns(list(pd.read_csv(
+        raw_normal, nrows=0).columns))
+    fits, manifest = [], []
+    for a in sorted(set(actuators)):
+        meta = WADI_STRUCTURE.get(a)
+        if meta is None:
+            stage = int(a[0]) if a[0] in "123" else 1
+            meta = {"sensor": DEFAULT_STAGE_SENSOR[stage],
+                    "plc": f"PLC{stage}", "stage": stage}
+            assign = "fallback"
+        else:
+            assign = "doc"
+        if a not in df.columns or meta["sensor"] not in df.columns:
+            manifest.append({"actuator": a, "assignment": "absent"})
+            continue
+        ft = fit_thresholds(df, actuator=a, sensor=meta["sensor"])
+        if ft is None:
+            ft = {"actuator": a, "sensor": meta["sensor"],
+                  "on_level": 0.25, "off_level": 0.75}
+            assign += "+default-threshold"
+        ft.update(plc=meta["plc"], stage=meta["stage"])
+        fits.append(ft)
+        manifest.append({"actuator": a, "sensor": meta["sensor"],
+                         "plc": meta["plc"], "assignment": assign,
+                         "on_level": ft["on_level"], "off_level": ft["off_level"]})
+    return emit_inp(fits), emit_plcs(fits), manifest
+
+
+def main() -> int:
+    inp, plcs, manifest = build()
+    OUT_INP.parent.mkdir(parents=True, exist_ok=True)
+    OUT_INP.write_text(inp)
+    OUT_PLCS.write_text(yaml.safe_dump(plcs, sort_keys=False))
+    Path("data/wadi/wadi_topology_manifest.yaml").write_text(
+        yaml.safe_dump({"actuators": manifest}, sort_keys=True))
+    print(f"wrote {OUT_INP} ({len(inp.splitlines())} lines), "
+          f"{OUT_PLCS} ({len(plcs)} PLCs), "
+          f"{sum(1 for m in manifest if 'on_level' in m)} fitted actuators")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
