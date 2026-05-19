@@ -7,6 +7,16 @@ from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 
+
+def _iec_ident(name: str) -> str:
+    """Return a valid IEC 61131-3 identifier for *name*.
+
+    IEC 61131-3 identifiers must start with a letter or underscore.
+    If *name* starts with a digit, prefix with ``v_``.
+    The logical name (used in the manifest) is unchanged.
+    """
+    return f"v_{name}" if name and name[0].isdigit() else name
+
 from .model import (
     Control,
     Manifest,
@@ -114,8 +124,9 @@ def _render_plc(
             continue  # empty-shell handled in Task 8
         block, fsm_meta, sensors_in_block = _render_case_block(act, ctrls)
         case_blocks.append(block)
-        state_var_decls.append(f"    {act}_State : INT := 0;")
-        output_decls.append(f"    {act} : BOOL;")
+        act_id = _iec_ident(act)
+        state_var_decls.append(f"    {act_id}_State : INT := 0;")
+        output_decls.append(f"    {act_id} : BOOL;")
         sensors_used.extend(sensors_in_block)
         fsms.append(fsm_meta)
 
@@ -172,7 +183,8 @@ def _render_var_input_line(sensor: str, owner: dict[str, str], this_plc: str) ->
         annot = "(* owned by this PLC *)"
     else:
         annot = f"(* sourced from {owner[sensor]} *)"
-    return f"    {sensor} : REAL;            {annot}"
+    sensor_id = _iec_ident(sensor)
+    return f"    {sensor_id} : REAL;            {annot}"
 
 
 def _render_case_block(
@@ -199,17 +211,19 @@ def _render_case_block(
     open_trans = [c for c in ctrls if c.target_state == "OPEN"]
     closed_trans = [c for c in ctrls if c.target_state == "CLOSED"]
 
+    act_id = _iec_ident(actuator)
     sensors: list[str] = []
     lines: list[str] = [f"(* ----- FSM for actuator {actuator} ----- *)"]
-    lines.append(f"CASE {actuator}_State OF")
+    lines.append(f"CASE {act_id}_State OF")
 
     # state 0 (CLOSED): transitions that flip to OPEN
     lines.append("    0:  (* CLOSED *)")
     for c in open_trans:
         sensors.append(c.sensor_node)
         op = "<" if c.comparator == "BELOW" else ">"
-        lines.append(f"        IF {c.sensor_node} {op} {c.threshold:g} THEN")
-        lines.append(f"            {actuator}_State := 1;")
+        sensor_id = _iec_ident(c.sensor_node)
+        lines.append(f"        IF {sensor_id} {op} {c.threshold:g} THEN")
+        lines.append(f"            {act_id}_State := 1;")
         lines.append("        END_IF;")
 
     # state 1 (OPEN): transitions that flip to CLOSED
@@ -217,12 +231,13 @@ def _render_case_block(
     for c in closed_trans:
         sensors.append(c.sensor_node)
         op = "<" if c.comparator == "BELOW" else ">"
-        lines.append(f"        IF {c.sensor_node} {op} {c.threshold:g} THEN")
-        lines.append(f"            {actuator}_State := 0;")
+        sensor_id = _iec_ident(c.sensor_node)
+        lines.append(f"        IF {sensor_id} {op} {c.threshold:g} THEN")
+        lines.append(f"            {act_id}_State := 0;")
         lines.append("        END_IF;")
 
     lines.append("END_CASE;")
-    lines.append(f"{actuator} := ({actuator}_State = 1);")
+    lines.append(f"{act_id} := ({act_id}_State = 1);")
     block = "\n".join(lines) + "\n"
     fsm_meta = {
         "actuator": actuator,
