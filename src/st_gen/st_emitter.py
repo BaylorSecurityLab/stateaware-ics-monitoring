@@ -178,12 +178,22 @@ def _render_var_input_line(sensor: str, owner: dict[str, str], this_plc: str) ->
 def _render_case_block(
     actuator: str, ctrls: list[Control]
 ) -> tuple[str, dict, list[str]]:
-    """Render one CASE block for a 2-state actuator. Raises if >2 thresholds."""
-    distinct = {(c.comparator, c.threshold) for c in ctrls}
-    if len(distinct) > 2:
+    """Render one CASE block for a 2-state (OPEN/CLOSED) actuator.
+
+    Raises MultiStateActuatorError if the same (comparator, threshold) pair maps
+    to both OPEN and CLOSED — that is ambiguous and cannot be represented as a
+    deterministic 2-state FSM.  Any number of distinct pairs is fine as long as
+    each pair maps to exactly one target state.
+    """
+    pair_to_states: dict[tuple[str, float], set[str]] = {}
+    for c in ctrls:
+        key = (c.comparator, c.threshold)
+        pair_to_states.setdefault(key, set()).add(c.target_state)
+    ambiguous = {k: v for k, v in pair_to_states.items() if len(v) > 1}
+    if ambiguous:
         raise MultiStateActuatorError(
-            f"actuator {actuator!r} has {len(distinct)} distinct (comparator,threshold) "
-            f"pairs in [CONTROLS]; >2 not supported"
+            f"actuator {actuator!r} has ambiguous (comparator,threshold) pairs that map "
+            f"to both OPEN and CLOSED: {ambiguous}"
         )
 
     open_trans = [c for c in ctrls if c.target_state == "OPEN"]

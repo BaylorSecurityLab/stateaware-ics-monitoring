@@ -1,0 +1,58 @@
+{
+  "topology": "wadi",
+  "inp": "wadi.inp",
+  "plcs_yaml": "wadi_plcs.yaml",
+  "generated_at": "2026-05-19T15:21:24+00:00",
+  "plcs": [
+    {
+      "name": "PLC1",
+      "file": "wadi_plc1.st",
+      "actuators": [
+        "P_RAW1",
+        "V_PUB"
+      ],
+      "sensors_referenced": [
+        {
+          "id": "T2",
+          "owner_plc": "PLC2"
+        },
+        {
+          "id": "T0",
+          "owner_plc": "PLC1"
+        }
+      ],
+      "fsms": [
+        {
+          "actuator": "P_RAW1",
+          "states": 2,
+          "transitions": 3
+        },
+        {
+          "actuator": "V_PUB",
+          "states": 2,
+          "transitions": 2
+        }
+      ]
+    },
+    {
+      "name": "PLC2",
+      "file": "wadi_plc2.st",
+      "actuators": [
+        "V_ER2i"
+      ],
+      "sensors_referenced": [
+        {
+          "id": "T2",
+          "owner_plc": "PLC2"
+        }
+      ],
+      "fsms": [
+        {
+          "actuator": "V_ER2i",
+          "states": 2,
+          "transitions": 2
+        }
+      ]
+    }
+  ]
+}

@@ -69,7 +69,8 @@ class UnsupportedRulesError(StGenError):
 
 
 class MultiStateActuatorError(StGenError):
-    """Raised when an actuator has >2 distinct (comparator, threshold) pairs."""
+    """Raised when an actuator has an ambiguous (comparator, threshold) pair that maps
+    to both OPEN and CLOSED in [CONTROLS]."""
 
 
 class ValidationError(StGenError):

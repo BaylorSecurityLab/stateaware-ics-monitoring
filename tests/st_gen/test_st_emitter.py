@@ -131,13 +131,14 @@ def test_emit_actuator_without_controls_is_empty_shell(tmp_path):
 
 
 def test_multi_state_actuator_raises(tmp_path):
+    # Same (BELOW, 1.0) pair maps to both OPEN and CLOSED — genuinely ambiguous.
     net = Network(
         tanks=[],
         pumps=[Pump("P1", "A", "B")],
         valves=[],
         controls=[
             Control("P1", "OPEN", "T1", "BELOW", 1.0),
-            Control("P1", "OPEN", "T1", "BELOW", 2.0),
+            Control("P1", "CLOSED", "T1", "BELOW", 1.0),
             Control("P1", "CLOSED", "T1", "ABOVE", 5.0),
         ],
     )
@@ -145,6 +146,29 @@ def test_multi_state_actuator_raises(tmp_path):
     with pytest.raises(MultiStateActuatorError) as exc:
         emit(net, plcs, out_dir=tmp_path, topology="x")
     assert "P1" in str(exc.value)
+
+
+def test_multi_transition_actuator_accepted(tmp_path):
+    # 3 distinct (comparator,threshold) pairs, each mapping to one target state.
+    # Mirrors wadi P_RAW1: CLOSED if T0<0.256, OPEN if T2<0.16, CLOSED if T2>0.32.
+    net = Network(
+        tanks=[],
+        pumps=[Pump("P1", "A", "B")],
+        valves=[],
+        controls=[
+            Control("P1", "CLOSED", "T0", "BELOW", 0.256),
+            Control("P1", "OPEN", "T2", "BELOW", 0.16),
+            Control("P1", "CLOSED", "T2", "ABOVE", 0.32),
+        ],
+    )
+    plcs = [Plc(name="PLC1", sensors=["T0", "T2"], actuators=["P1"])]
+    manifest = emit(net, plcs, out_dir=tmp_path, topology="x")
+    text = (tmp_path / "x_plc1.st").read_text(encoding="utf-8")
+    assert "CASE P1_State OF" in text
+    assert "IF T0 < 0.256 THEN" in text
+    assert "IF T2 < 0.16 THEN" in text
+    assert "IF T2 > 0.32 THEN" in text
+    assert manifest.plcs[0]["fsms"][0]["transitions"] == 3
 
 
 def test_manifest_contains_provenance_and_fsm_summary(tmp_path):
