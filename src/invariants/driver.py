@@ -14,7 +14,7 @@ import numpy as np
 from .manifest import build_manifest
 from .mine import MinerConfig, mine_state
 from .model import InvariantsError, MinedRule
-from .rule_eval import row_violation_count
+from .rule_eval import frame_violation_counts
 from .state_label import label_frame, load_gfsm_components
 from .threshold import select_violation_threshold
 
@@ -120,17 +120,17 @@ def mine_topology(
     rules_by_state = {
         s: (e.get("rules") or []) for s, e in states.items()
     }
+    labels_arr = (labels.to_numpy()
+                  if hasattr(labels, "to_numpy")
+                  else np.asarray(list(labels)))
     cal_counts = np.zeros(len(cal_df), dtype=int)
-    cal_absent = np.zeros(len(cal_df), dtype=bool)
-    label_list = list(labels)
-    for i in range(len(cal_df)):
-        s = label_list[i]
-        rs = rules_by_state.get(s)
-        if rs is None:
-            cal_absent[i] = True
+    cal_absent = ~np.isin(labels_arr, list(rules_by_state.keys()))
+    for s, rs in rules_by_state.items():
+        if not rs:
             continue
-        if rs:
-            cal_counts[i] = row_violation_count(cal_df.iloc[i], rs)
+        sel = labels_arr == s
+        if sel.any():
+            cal_counts[sel] = frame_violation_counts(cal_df[sel], rs)
     k, k_note = select_violation_threshold(
         cal_counts, cal_absent, fp_budget)
 
