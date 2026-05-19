@@ -22,7 +22,6 @@ import pandas as pd
 
 from invariants.model import InvariantsError
 from invariants.rule_eval import all_hold as _all_hold
-from invariants.rule_eval import atom_holds as _atom_holds
 from invariants.rule_eval import row_violation_count as _row_violation_count
 from invariants.state_label import label_frame
 
