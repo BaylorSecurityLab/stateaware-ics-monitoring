@@ -30,6 +30,9 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("--min-observations", type=int, default=50)
     p.add_argument("--max-evals", type=int, default=5000)
     p.add_argument("--seed", type=int, default=42)
+    p.add_argument("--fp-budget", type=float, default=0.01,
+                   help="clean false-positive budget for the Φ violation "
+                        "threshold K (0<τ<1; default 0.01)")
     p.add_argument("--strict", action="store_true",
                    help="fail immediately on any mining error")
     p.add_argument("-v", "--verbose", action="store_true")
@@ -52,6 +55,13 @@ def _resolve_fb_to_col(
 
 def main(argv: list[str] | None = None) -> int:
     args = _build_parser().parse_args(argv)
+
+    if not (0.0 < args.fp_budget < 1.0):
+        print(
+            f"error: --fp-budget must be in (0, 1), got {args.fp_budget}",
+            file=sys.stderr,
+        )
+        return 2
 
     if args.all:
         gen_root = args.data_root / "generated"
@@ -93,6 +103,7 @@ def main(argv: list[str] | None = None) -> int:
                 fb_to_col=fb_to_col,
                 min_observations=args.min_observations,
                 max_evals=args.max_evals, seed=args.seed,
+                fp_budget=args.fp_budget,
                 keep_going=not args.strict,
             )
         except InvariantsError as exc:

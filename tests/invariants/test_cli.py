@@ -55,3 +55,21 @@ def test_all_processes_only_dirs_with_gfsm_json(tmp_path: Path, capsys):
     rc = main(["--all", "--data-root", str(tmp_path)])
     assert rc == 2
     assert "error:" in capsys.readouterr().err
+
+
+def test_fp_budget_arg_default_and_validation():
+    from invariants.cli import _build_parser
+    p = _build_parser()
+    ns = p.parse_args(["--all"])
+    assert ns.fp_budget == 0.01
+    ns2 = p.parse_args(["--all", "--fp-budget", "0.05"])
+    assert ns2.fp_budget == 0.05
+
+
+def test_fp_budget_invalid_returns_error(capsys):
+    from invariants.cli import main
+    rc = main(["--topology", "x", "--data-root", "/nonexistent",
+               "--fp-budget", "0"])
+    assert rc != 0
+    err = capsys.readouterr().err
+    assert "fp-budget" in err or "fp_budget" in err
