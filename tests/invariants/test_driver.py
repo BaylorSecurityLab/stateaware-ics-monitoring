@@ -87,3 +87,40 @@ def test_missing_dataset_manifest_raises(tmp_path: Path):
         mine_topology(topology="synth", data_root=tmp_path,
                       gfsm_dir=gfsm_dir, out_dir=tmp_path / "out",
                       fb_to_col={("PLC1", "S"): "p1"})
+
+
+def test_mine_topology_writes_violation_threshold(tmp_path):
+    gfsm_dir = tmp_path / "gfsm"
+    gfsm_dir.mkdir()
+    (gfsm_dir / "synth.gfsm.json").write_text(json.dumps({
+        "initial": "PLC1.S:0",
+        "states": {"PLC1.S:0": ["0"], "PLC1.S:1": ["1"]},
+        "transitions": [], "metadata": {"source_file": "x",
+            "extraction_date": "", "total_states": 2,
+            "total_transitions": 0},
+        "max_states": 100,
+    }))
+    (gfsm_dir / "synth_gfsm_manifest.json").write_text(json.dumps({"x": 1}))
+    ds_dir = tmp_path / "synth" / "dataset"
+    ds_dir.mkdir(parents=True)
+    (ds_dir / "dataset_manifest.yaml").write_text(
+        "files:\n  calibration:\n    - cal.csv\n  evaluation: []\n"
+        "column_map: {}\nattack_windows: []\n"
+    )
+    pd.DataFrame({
+        "p1": [0]*60 + [1]*60,
+        "t1": [1.0]*60 + [2.0]*60,
+        "f1": [0.5]*60 + [0.7]*60,
+    }).to_csv(ds_dir / "cal.csv", index=False)
+
+    out = tmp_path / "synth" / "invariants"
+    mine_topology(
+        topology="synth", data_root=tmp_path, gfsm_dir=gfsm_dir,
+        out_dir=out, fb_to_col={("PLC1", "S"): "p1"},
+        min_observations=50, max_evals=200, seed=42,
+        feature_cols=["t1", "f1"], fp_budget=0.01,
+    )
+    phi = json.loads((out / "synth_phi.json").read_text())
+    assert isinstance(phi["violation_threshold"], int)
+    assert phi["violation_threshold"] >= 1
+    assert phi["violation_fp_budget"] == 0.01

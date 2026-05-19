@@ -9,10 +9,14 @@ from typing import Any
 import pandas as pd
 import yaml
 
+import numpy as np
+
 from .manifest import build_manifest
 from .mine import MinerConfig, mine_state
 from .model import InvariantsError, MinedRule
+from .rule_eval import row_violation_count
 from .state_label import label_frame, load_gfsm_components
+from .threshold import select_violation_threshold
 
 
 def _load_gfsm_json(gfsm_dir: Path, topology: str) -> dict[str, Any]:
@@ -57,6 +61,7 @@ def mine_topology(
     max_evals: int = 5000,
     seed: int = 42,
     feature_cols: list[str] | None = None,
+    fp_budget: float = 0.01,
     keep_going: bool = True,
 ) -> dict[str, Any]:
     out_dir = Path(out_dir)
@@ -106,6 +111,29 @@ def mine_topology(
             if not keep_going:
                 break
 
+    # --- clean-calibration violation-threshold calibration ---
+    # NOTE: cal_absent is structurally all-False here — every calibration
+    # label is in `states`, so rules_by_state.get(s) is never None at mine
+    # time. Kept for signature symmetry with select_violation_threshold /
+    # the runtime detector (state-absence is a runtime-only signal); the
+    # clean-FP estimate correctly degenerates to mean(counts>=k).
+    rules_by_state = {
+        s: (e.get("rules") or []) for s, e in states.items()
+    }
+    cal_counts = np.zeros(len(cal_df), dtype=int)
+    cal_absent = np.zeros(len(cal_df), dtype=bool)
+    label_list = list(labels)
+    for i in range(len(cal_df)):
+        s = label_list[i]
+        rs = rules_by_state.get(s)
+        if rs is None:
+            cal_absent[i] = True
+            continue
+        if rs:
+            cal_counts[i] = row_violation_count(cal_df.iloc[i], rs)
+    k, k_note = select_violation_threshold(
+        cal_counts, cal_absent, fp_budget)
+
     manifest = build_manifest(
         topology=topology,
         gfsm_manifest_name=gfsm_man_name, gfsm_manifest_text=gfsm_man_text,
@@ -125,8 +153,12 @@ def mine_topology(
         "dataset_manifest_sha256": manifest["dataset_manifest_sha256"],
         "niaarm": manifest["niaarm"],
         "generated_at": manifest["generated_at"],
+        "violation_threshold": int(k),
+        "violation_fp_budget": float(fp_budget),
         "states": states,
     }
+    if k_note is not None:
+        phi["violation_threshold_note"] = k_note
     (out_dir / f"{topology}_phi.json").write_text(
         json.dumps(phi, indent=2, sort_keys=True, default=str) + "\n"
     )
