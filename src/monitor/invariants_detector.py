@@ -17,42 +17,13 @@ import numpy as np
 import pandas as pd
 
 from invariants.model import InvariantsError
+from invariants.rule_eval import all_hold as _all_hold
+from invariants.rule_eval import atom_holds as _atom_holds
+from invariants.rule_eval import row_violation_count as _row_violation_count
 from invariants.state_label import label_frame
 
 from .model import MonitorError
 from .protocol import StepFlags
-
-
-def _atom_holds(row: pd.Series, atom: dict[str, Any]) -> bool:
-    col = atom["col"]
-    if col not in row.index:
-        return False
-    v = row[col]
-    op = atom["op"]
-    val = atom["val"]
-    if op == "in":
-        lo, hi = (val if isinstance(val, list) and len(val) == 2
-                  else (None, None))
-        if lo is not None and v < lo:
-            return False
-        if hi is not None and v > hi:
-            return False
-        return True
-    if op == "==":
-        return v == val
-    if op == ">=":
-        return v >= val
-    if op == "<=":
-        return v <= val
-    if op == ">":
-        return v > val
-    if op == "<":
-        return v < val
-    return False
-
-
-def _all_hold(row: pd.Series, atoms: list[dict[str, Any]]) -> bool:
-    return all(_atom_holds(row, a) for a in atoms)
 
 
 class InvariantsAnomalyDetector:
