@@ -4,45 +4,161 @@
 
 PROGRAM PLC1
 VAR_INPUT
-    T2 : REAL;            (* sourced from PLC2 *)
-    T0 : REAL;            (* owned by this PLC *)
+    1_lt_001_pv : REAL;            (* owned by this PLC *)
 END_VAR
 VAR_OUTPUT
-    P_RAW1 : BOOL;
-    V_PUB : BOOL;
+    1_mv_001_status : BOOL;
+    1_mv_002_status : BOOL;
+    1_mv_003_status : BOOL;
+    1_mv_004_status : BOOL;
+    1_p_001_status : BOOL;
+    1_p_002_status : BOOL;
+    1_p_003_status : BOOL;
+    1_p_004_status : BOOL;
+    1_p_005_status : BOOL;
+    1_p_006_status : BOOL;
 END_VAR
 VAR
-    P_RAW1_State : INT := 0;
-    V_PUB_State : INT := 0;
+    1_mv_001_status_State : INT := 0;
+    1_mv_002_status_State : INT := 0;
+    1_mv_003_status_State : INT := 0;
+    1_mv_004_status_State : INT := 0;
+    1_p_001_status_State : INT := 0;
+    1_p_002_status_State : INT := 0;
+    1_p_003_status_State : INT := 0;
+    1_p_004_status_State : INT := 0;
+    1_p_005_status_State : INT := 0;
+    1_p_006_status_State : INT := 0;
 END_VAR
 
-(* ----- FSM for actuator P_RAW1 ----- *)
-CASE P_RAW1_State OF
+(* ----- FSM for actuator 1_mv_001_status ----- *)
+CASE 1_mv_001_status_State OF
     0:  (* CLOSED *)
-        IF T2 < 0.16 THEN
-            P_RAW1_State := 1;
+        IF 1_lt_001_pv < 0.929494 THEN
+            1_mv_001_status_State := 1;
         END_IF;
     1:  (* OPEN *)
-        IF T0 < 0.256 THEN
-            P_RAW1_State := 0;
-        END_IF;
-        IF T2 > 0.32 THEN
-            P_RAW1_State := 0;
+        IF 1_lt_001_pv > 0.943802 THEN
+            1_mv_001_status_State := 0;
         END_IF;
 END_CASE;
-P_RAW1 := (P_RAW1_State = 1);
+1_mv_001_status := (1_mv_001_status_State = 1);
 
-(* ----- FSM for actuator V_PUB ----- *)
-CASE V_PUB_State OF
+(* ----- FSM for actuator 1_mv_002_status ----- *)
+CASE 1_mv_002_status_State OF
     0:  (* CLOSED *)
-        IF T0 < 0.256 THEN
-            V_PUB_State := 1;
+        IF 1_lt_001_pv < 0.25 THEN
+            1_mv_002_status_State := 1;
         END_IF;
     1:  (* OPEN *)
-        IF T0 > 0.448 THEN
-            V_PUB_State := 0;
+        IF 1_lt_001_pv > 0.75 THEN
+            1_mv_002_status_State := 0;
         END_IF;
 END_CASE;
-V_PUB := (V_PUB_State = 1);
+1_mv_002_status := (1_mv_002_status_State = 1);
+
+(* ----- FSM for actuator 1_mv_003_status ----- *)
+CASE 1_mv_003_status_State OF
+    0:  (* CLOSED *)
+        IF 1_lt_001_pv < 0.25 THEN
+            1_mv_003_status_State := 1;
+        END_IF;
+    1:  (* OPEN *)
+        IF 1_lt_001_pv > 0.75 THEN
+            1_mv_003_status_State := 0;
+        END_IF;
+END_CASE;
+1_mv_003_status := (1_mv_003_status_State = 1);
+
+(* ----- FSM for actuator 1_mv_004_status ----- *)
+CASE 1_mv_004_status_State OF
+    0:  (* CLOSED *)
+        IF 1_lt_001_pv < 0.831356 THEN
+            1_mv_004_status_State := 1;
+        END_IF;
+    1:  (* OPEN *)
+        IF 1_lt_001_pv > 0.809123 THEN
+            1_mv_004_status_State := 0;
+        END_IF;
+END_CASE;
+1_mv_004_status := (1_mv_004_status_State = 1);
+
+(* ----- FSM for actuator 1_p_001_status ----- *)
+CASE 1_p_001_status_State OF
+    0:  (* CLOSED *)
+        IF 1_lt_001_pv < 0.25 THEN
+            1_p_001_status_State := 1;
+        END_IF;
+    1:  (* OPEN *)
+        IF 1_lt_001_pv > 0.75 THEN
+            1_p_001_status_State := 0;
+        END_IF;
+END_CASE;
+1_p_001_status := (1_p_001_status_State = 1);
+
+(* ----- FSM for actuator 1_p_002_status ----- *)
+CASE 1_p_002_status_State OF
+    0:  (* CLOSED *)
+        IF 1_lt_001_pv < 0.25 THEN
+            1_p_002_status_State := 1;
+        END_IF;
+    1:  (* OPEN *)
+        IF 1_lt_001_pv > 0.75 THEN
+            1_p_002_status_State := 0;
+        END_IF;
+END_CASE;
+1_p_002_status := (1_p_002_status_State = 1);
+
+(* ----- FSM for actuator 1_p_003_status ----- *)
+CASE 1_p_003_status_State OF
+    0:  (* CLOSED *)
+        IF 1_lt_001_pv < 0.25 THEN
+            1_p_003_status_State := 1;
+        END_IF;
+    1:  (* OPEN *)
+        IF 1_lt_001_pv > 0.75 THEN
+            1_p_003_status_State := 0;
+        END_IF;
+END_CASE;
+1_p_003_status := (1_p_003_status_State = 1);
+
+(* ----- FSM for actuator 1_p_004_status ----- *)
+CASE 1_p_004_status_State OF
+    0:  (* CLOSED *)
+        IF 1_lt_001_pv < 0.25 THEN
+            1_p_004_status_State := 1;
+        END_IF;
+    1:  (* OPEN *)
+        IF 1_lt_001_pv > 0.75 THEN
+            1_p_004_status_State := 0;
+        END_IF;
+END_CASE;
+1_p_004_status := (1_p_004_status_State = 1);
+
+(* ----- FSM for actuator 1_p_005_status ----- *)
+CASE 1_p_005_status_State OF
+    0:  (* CLOSED *)
+        IF 1_lt_001_pv < 0.25 THEN
+            1_p_005_status_State := 1;
+        END_IF;
+    1:  (* OPEN *)
+        IF 1_lt_001_pv > 0.75 THEN
+            1_p_005_status_State := 0;
+        END_IF;
+END_CASE;
+1_p_005_status := (1_p_005_status_State = 1);
+
+(* ----- FSM for actuator 1_p_006_status ----- *)
+CASE 1_p_006_status_State OF
+    0:  (* CLOSED *)
+        IF 1_lt_001_pv < 0.25 THEN
+            1_p_006_status_State := 1;
+        END_IF;
+    1:  (* OPEN *)
+        IF 1_lt_001_pv > 0.75 THEN
+            1_p_006_status_State := 0;
+        END_IF;
+END_CASE;
+1_p_006_status := (1_p_006_status_State = 1);
 
 END_PROGRAM
