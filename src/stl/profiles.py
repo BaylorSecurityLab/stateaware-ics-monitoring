@@ -1,4 +1,4 @@
-"""Declarative anytown/ctown/ltown topology profiles (replace the subclasses)."""
+"""Declarative anytown/ctown topology profiles (replace the subclasses)."""
 
 from __future__ import annotations
 
@@ -55,25 +55,7 @@ CTOWN = TopologyProfile(
     hysteresis=2, smoothing_window=5, margin=0.05, min_fire_count=1,
 )
 
-LTOWN = TopologyProfile(
-    name="ltown",
-    tanks=["t1"],
-    pumps=["pump_1"],
-    valves={},
-    junctions=[],
-    tank_physical={"t1": {"min": 0.0, "max": 4.0}},
-    feeder_map={"t1": ["f_pump_1"]},
-    pump_pressure_pairs={},
-    control_rules=[("pump_1", "t1", 2.4, 3.9)],
-    symmetry_pairs=[],
-    state_vars=["pump_1"],
-    pump_status_fmt="{pid}",
-    pump_flow_fmt="f_{pid}",
-    mb_windows=(3, 6, 12),
-    hysteresis=2, smoothing_window=5, margin=0.05, min_fire_count=2,
-)
-
-PROFILES = {"anytown": ANYTOWN, "ctown": CTOWN, "ltown": LTOWN}
+PROFILES = {"anytown": ANYTOWN, "ctown": CTOWN}
 
 
 def get_profile(name: str) -> TopologyProfile:

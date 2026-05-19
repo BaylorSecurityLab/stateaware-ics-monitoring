@@ -40,5 +40,5 @@ def test_cli_topology_writes_artifacts(tmp_path: Path):
     assert (out / "ctown_stl_manifest.json").exists()
 
 
-def test_cli_unknown_topology_returns_2(tmp_path: Path):
-    assert main(["--topology", "ltown", "--data-root", str(tmp_path)]) == 2
+def test_cli_missing_dataset_returns_2(tmp_path: Path):
+    assert main(["--topology", "anytown", "--data-root", str(tmp_path)]) == 2

@@ -44,4 +44,4 @@ def test_missing_dataset_raises(tmp_path: Path):
     import pytest
     from dataio.model import DataIoError
     with pytest.raises(DataIoError):
-        load_topology("ltown", data_root=tmp_path)
+        load_topology("nope", data_root=tmp_path)

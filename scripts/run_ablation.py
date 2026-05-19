@@ -1,6 +1,6 @@
 """End-to-end GFSM/STL/OR ablation for the state-aware ICS monitoring pipeline.
 
-Runs the WHOLE shipped pipeline for every topology (anytown, ctown, ltown):
+Runs the WHOLE shipped pipeline for every topology (anytown, ctown):
 
   1. Regenerate artifacts idempotently:
         python -m gfsm --all
@@ -46,7 +46,7 @@ if str(_SRC) not in sys.path:
 
 from stl.metrics import detection_metrics  # noqa: E402
 
-TOPOLOGIES = ["anytown", "ctown", "ltown"]
+TOPOLOGIES = ["anytown", "ctown"]
 
 CAVEAT = (
     "NOTE: Full per-actuator GFSM composition (paper Def 1/2) — the Stage-4 "

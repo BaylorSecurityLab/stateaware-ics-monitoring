@@ -150,7 +150,7 @@ def test_multi_state_actuator_raises(tmp_path):
 
 def test_multi_transition_actuator_accepted(tmp_path):
     # 3 distinct (comparator,threshold) pairs, each mapping to one target state.
-    # Mirrors wadi P_RAW1: CLOSED if T0<0.256, OPEN if T2<0.16, CLOSED if T2>0.32.
+    # Multi-rule deterministic actuator: CLOSED if T0<0.256, OPEN if T2<0.16, CLOSED if T2>0.32.
     net = Network(
         tanks=[],
         pumps=[Pump("P1", "A", "B")],

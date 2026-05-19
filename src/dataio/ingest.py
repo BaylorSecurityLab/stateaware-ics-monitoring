@@ -12,9 +12,8 @@ from .manifest import build_dataset_manifest
 from .model import DataIoError
 from .readers import anytown as r_anytown
 from .readers import ctown as r_ctown
-from .readers import ltown as r_ltown
 
-TOPOLOGIES = ("anytown", "ctown", "ltown")
+TOPOLOGIES = ("anytown", "ctown")
 
 
 def _write_csv(df, path: Path) -> str:
@@ -35,9 +34,6 @@ def ingest_topology(topology: str, *, raw_root: Path, data_root: Path) -> Path:
     elif topology == "anytown":
         cal_frames, eval_named, colmap, src = r_anytown.build_normalized(raw_root)
         note, windows = "anytown DHALSIM disruptive-anomalies dataset", []
-    elif topology == "ltown":
-        cal_frames, eval_named, colmap, src = r_ltown.build_normalized(raw_root)
-        note, windows = "L-Town simgen (zarr); held-out normal, no labeled attacks", []
     else:
         raise DataIoError(f"unknown topology: {topology}")
 

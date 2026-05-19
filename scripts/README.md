@@ -2,7 +2,7 @@
 
 ## run_ablation.py
 
-End-to-end GFSM vs STL vs OR ablation over all topologies (anytown, ctown, ltown).
+End-to-end GFSM vs STL vs OR ablation over all topologies (anytown, ctown).
 
 ```bash
 python scripts/run_ablation.py

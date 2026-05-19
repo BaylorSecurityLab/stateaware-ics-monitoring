@@ -4,8 +4,8 @@ from stl.profiles import get_profile, PROFILES
 from stl.model import StlError
 
 
-def test_three_profiles_present():
-    assert set(PROFILES) == {"anytown", "ctown", "ltown"}
+def test_profiles_present():
+    assert set(PROFILES) == {"anytown", "ctown"}
 
 
 def test_ctown_profile_shape():

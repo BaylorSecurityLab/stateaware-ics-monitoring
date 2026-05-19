@@ -27,3 +27,4 @@ Thumbs.db
 # Project policy: docs/ is a working scratch area; do NOT commit anything under it.
 docs/
 .claude/
+baselines/results/
